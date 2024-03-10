@@ -27,12 +27,17 @@ prompt = PromptTemplate.from_template(template)
 llm_chain = LLMChain(prompt=prompt, llm=llm)
 
 
+def save_file(filebytes, filepath):
+   with open(filepath, 'wb') as f: 
+       f.write(filebytes)
+   f.close()
+
 def get_embedding(text):
    text = text.replace("\n", " ")
    return embeddings.embed_query(text)
 
 
-def find_match(input):
+def get_response(input):
     # result = vstore.similarity_search(input, k=3)
     # return result.page_content
 
@@ -42,8 +47,6 @@ def find_match(input):
     )
     assert response.status_code == 200, response.status_code
     json_response = response.json()
-    print(json_response)
-    # outfit_recommends = json_response["outfit_recommend"]
     return json_response["response"]
 
 
