@@ -3,6 +3,7 @@ import nest_asyncio
 from dotenv import load_dotenv, find_dotenv
 from fastapi import FastAPI
 from pydantic import BaseModel
+from typing import List
 
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -45,6 +46,10 @@ class TextInput(BaseModel):
     text: str
 
 
+class TextList(BaseModel):
+    textlist: List[str]
+
+
 class TextParser:
     def __init__(self, node_parser=None, reranker=None, mode="advanced"):
         self.parser = LlamaParse(
@@ -60,46 +65,48 @@ class TextParser:
         self.reranker = reranker
         self.load_db()
 
-        # if data_dir is not None:
-        #     documents = SimpleDirectoryReader(
-        #       data_dir, file_extractor={".pdf": parser}
-        #     ).load_data()
-        #     self.get_query_engine(documents, reranker)
-
     def load_db(self):
         self.vstore = AstraDBVectorStore(
             token=os.getenv("ASTRA_TOKEN"),
             api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
             namespace=os.getenv("ASTRA_NAMESPACE"),
-            collection_name="qa_v1",
+            collection_name="qa_v2",
             embedding_dimension=1536
         )
         
-    def get_engine(self, data_dir):
+    def parse_files(self, filepaths):
+        documents = self.parser.load_data(filepaths)
+        self._parse_documents(documents)
+
+    def parse_dir(self, data_dir):
         documents = SimpleDirectoryReader(
             data_dir, file_extractor={".pdf": self.parser}
         ).load_data()
-        self._get_query_engine(documents)
+        self._parse_documents(documents)
 
-    def _get_query_engine(self, documents):
+    def _parse_documents(self, documents):
         storage_context = StorageContext.from_defaults(vector_store=self.vstore)
         
-        if self.mode == "advanced":
-            nodes = self.node_parser.get_nodes_from_documents(documents)
-            base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
-            self.index = VectorStoreIndex(
-                nodes=base_nodes+objects,
-                storage_context=storage_context
-            )
-        elif self.mode == "basic":
-            # self.index = VectorStoreIndex.from_documents(
-            #     documents, storage_context=storage_context
-            # )
-            self.index = VectorStoreIndex.from_vector_store(
-                self.vstore, storage_context=storage_context
-            )
+        if not hasattr(self, "index"):
+            if self.mode == "advanced":
+                nodes = self.node_parser.get_nodes_from_documents(documents)
+                base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
+                self.index = VectorStoreIndex(
+                    nodes=base_nodes+objects,
+                    storage_context=storage_context
+                )
+            elif self.mode == "basic":
+                self.index = VectorStoreIndex.from_documents(
+                    documents, storage_context=storage_context
+                )
+                # self.index = VectorStoreIndex.from_vector_store(
+                #     self.vstore, storage_context=storage_context
+                # )
+            else:
+                raise NotImplementedError
         else:
-            raise NotImplementedError
+            for doc in documents:
+                self.index.insert(document=doc, storage_context=storage_context)
 
         self.query_engine = self.index.as_query_engine(
             similarity_top_k=15,
@@ -121,10 +128,17 @@ engine = TextParser(
     # )
     reranker=SimilarityPostprocessor(similarity_cutoff=0.5)
 )
-engine.get_engine(
-    data_dir="/home/dungmaster/Datasets/rag-data/text",
-)
+# engine.parse_from_dir(
+#     data_dir="/home/dungmaster/Datasets/rag-data/text",
+# )
+
 
 @app.post("/query_from_text/", status_code=200)
 async def query_from_text(prompt: TextInput):
     return engine.query(prompt.text)
+
+
+@app.put("/update_text/", status_code=200)
+async def update_text():
+    # engine.parse_files(filepaths.textlist)
+    engine.parse_dir("./documents")    
