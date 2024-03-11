@@ -1,5 +1,6 @@
 import os
 import requests
+import time
 
 from pinecone import Pinecone
 from langchain_astradb import AstraDBVectorStore
@@ -35,6 +36,15 @@ def save_file(filebytes, filepath):
 def get_embedding(text):
    text = text.replace("\n", " ")
    return embeddings.embed_query(text)
+
+def calculate_time(func):
+   def timing(*args, **kwargs):
+      t1 = time.time()
+      outputs = func(*args, **kwargs)
+      t2 = time.time()
+      print(f"Time: {(t2-t1):.3f}s")
+      return outputs
+   return timing
 
 
 def get_response(input):

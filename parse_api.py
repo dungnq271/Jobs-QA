@@ -19,6 +19,9 @@ from llama_index.core.node_parser import MarkdownElementNodeParser
 from llama_index.core import StorageContext
 from llama_index.core.postprocessor import SimilarityPostprocessor
 
+from utils import calculate_time
+
+
 nest_asyncio.apply()
 
 
@@ -51,7 +54,7 @@ class TextList(BaseModel):
 
 
 class TextParser:
-    def __init__(self, node_parser=None, reranker=None, mode="advanced"):
+    def __init__(self, node_parser=None, reranker=None, mode="advanced", collection_name="rag_demo"):
         self.parser = LlamaParse(
             api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
             result_type="markdown",  # "markdown" and "text" are available
@@ -61,76 +64,84 @@ class TextParser:
         )
 
         self.mode = mode
+        self.collection_name = collection_name
         self.node_parser = node_parser
         self.reranker = reranker
-        self.load_db()
+        self._load_index()
+        self._get_query_engine()
 
-    def load_db(self):
+    def _load_index(self):
         self.vstore = AstraDBVectorStore(
             token=os.getenv("ASTRA_TOKEN"),
             api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
             namespace=os.getenv("ASTRA_NAMESPACE"),
-            collection_name="qa_v2",
+            collection_name=self.collection_name,
             embedding_dimension=1536
         )
+        self.storage_context = StorageContext.from_defaults(vector_store=self.vstore)
+        self.index = VectorStoreIndex.from_vector_store(
+            self.vstore, storage_context=self.storage_context
+        )
         
+    @calculate_time
     def parse_files(self, filepaths):
-        documents = self.parser.load_data(filepaths)
+        documents = SimpleDirectoryReader(
+            input_files=filepaths,
+            file_extractor={".pdf": self.parser}
+        ).load_data()
         self._parse_documents(documents)
 
     def parse_dir(self, data_dir):
         documents = SimpleDirectoryReader(
-            data_dir, file_extractor={".pdf": self.parser}
+            data_dir,
+            file_extractor={".pdf": self.parser}
         ).load_data()
         self._parse_documents(documents)
 
     def _parse_documents(self, documents):
-        storage_context = StorageContext.from_defaults(vector_store=self.vstore)
-        
         if not hasattr(self, "index"):
             if self.mode == "advanced":
                 nodes = self.node_parser.get_nodes_from_documents(documents)
                 base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
                 self.index = VectorStoreIndex(
                     nodes=base_nodes+objects,
-                    storage_context=storage_context
+                    storage_context=self.storage_context
                 )
             elif self.mode == "basic":
                 self.index = VectorStoreIndex.from_documents(
-                    documents, storage_context=storage_context
+                    documents, storage_context=self.storage_context
                 )
-                # self.index = VectorStoreIndex.from_vector_store(
-                #     self.vstore, storage_context=storage_context
-                # )
             else:
                 raise NotImplementedError
         else:
             for doc in documents:
-                self.index.insert(document=doc, storage_context=storage_context)
+                self.index.insert(document=doc, storage_context=self.storage_context)
 
+        self._get_query_engine()
+
+    def _get_query_engine(self):
         self.query_engine = self.index.as_query_engine(
             similarity_top_k=15,
             node_postprocessors=[self.reranker],
             verbose=True
         )
 
+    @calculate_time
     def query(self, prompt: str):
         return self.query_engine.query(prompt)
 
 
 engine = TextParser(
-    mode="basic",
-    # node_parser=MarkdownElementNodeParser(
-    #     llm=OpenAI(
-    #         model="gpt-3.5-turbo-0125",
-    #     ),
-    #     num_workers=8
-    # )
+    mode="advanced",
+    collection_name="rag_demo",
+    node_parser=MarkdownElementNodeParser(
+        llm=OpenAI(
+            model="gpt-3.5-turbo-0125",
+        ),
+        num_workers=4
+    ),
     reranker=SimilarityPostprocessor(similarity_cutoff=0.5)
 )
-# engine.parse_from_dir(
-#     data_dir="/home/dungmaster/Datasets/rag-data/text",
-# )
 
 
 @app.post("/query_from_text/", status_code=200)
@@ -139,6 +150,5 @@ async def query_from_text(prompt: TextInput):
 
 
 @app.put("/update_text/", status_code=200)
-async def update_text():
-    # engine.parse_files(filepaths.textlist)
-    engine.parse_dir("./documents")    
+async def update_text(filepaths: TextList):
+    engine.parse_files(filepaths.textlist)
