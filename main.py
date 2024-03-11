@@ -11,6 +11,9 @@ from langchain.prompts import (
     MessagesPlaceholder
 )
 
+import asyncio
+import requests
+
 import streamlit as st
 from streamlit_chat import message
 from utils import *
@@ -52,24 +55,31 @@ doc_dir = "./documents"
 if not osp.exists(doc_dir):
     os.makedirs(doc_dir, exist_ok=True)
 
+
 with st.sidebar:
     st.header("File Upload Options")
     uploaded_files = st.file_uploader("Upload files", type=["txt", "csv", "pdf"], accept_multiple_files=True)
 
-new_paths = []
-for uploaded_file in uploaded_files:
+
+async def parse_file(uploaded_file, existing_files=st.session_state["documents"]):
+    new_files = []
     filename = uploaded_file.name
-    if filename not in st.session_state["documents"]:
+    if filename not in existing_files:
         filepath = osp.join(doc_dir, osp.basename(filename))
         save_file(uploaded_file.read(), filepath)
-        st.session_state["documents"].append(filename)
-        new_paths.append(filepath)
+        existing_files.append(filename)
+        requests.put(
+            "http://127.0.0.1:8000/update_text/",
+            json={"textlist": [filepath]},            
+        )
+        new_files.append(filename)
+    return new_files
 
-if len(new_paths) > 0:
-    requests.put(
-        "http://127.0.0.1:8000/update_text/",
-        # json={"textlist": new_paths},            
-    )
+
+async def parse_job():
+    new_files = await asyncio.gather(*[parse_file(uf, st.session_state["documents"])
+                                       for uf in uploaded_files])
+    st.session_state["documents"].extend(new_files)
 
 
 # container for chat history
@@ -78,8 +88,12 @@ response_container = st.container()
 textcontainer = st.container()
 
 
+def on_click():
+    st.session_state.user_input = ""
+    
+
 with textcontainer:
-    query = st.text_input("Query: ", key="input")
+    query = st.text_input("Query: ", key="user_input")
     if query:
         with st.spinner("typing..."):
             conversation_string = get_conversation_string()
@@ -94,7 +108,10 @@ with textcontainer:
             response = get_response(query)
 
         st.session_state.requests.append(query)
-        st.session_state.responses.append(response) 
+        st.session_state.responses.append(response)
+
+    st.button("Clear", on_click=on_click)
+
 
 with response_container:
     if st.session_state['responses']:
@@ -103,4 +120,6 @@ with response_container:
             if i < len(st.session_state['requests']):
                 message(st.session_state["requests"][i], is_user=True,key=str(i)+ '_user')
 
-          
+
+
+asyncio.run(parse_job())
