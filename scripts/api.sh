@@ -1,2 +1,2 @@
 #!/bin/zsh
-uvicorn parse_api:app --loop asyncio
+uvicorn agent_api:app --loop asyncio --reload
