@@ -12,13 +12,13 @@ import streamlit as st
 from dotenv import load_dotenv, find_dotenv
 
 
-_ = load_dotenv(find_dotenv()) # read local .env file
+_ = load_dotenv(find_dotenv())  # read local .env file
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 llm = OpenAI(model_name="gpt-3.5-turbo")
 
 # pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
-# index = pc.Index(os.getenv("PINECONE_INDEX_NAME")) 
+# index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
 
 template = """
@@ -29,22 +29,25 @@ llm_chain = LLMChain(prompt=prompt, llm=llm)
 
 
 def save_file(filebytes, filepath):
-   with open(filepath, 'wb') as f: 
-       f.write(filebytes)
-   f.close()
+    with open(filepath, "wb") as f:
+        f.write(filebytes)
+    f.close()
+
 
 def get_embedding(text):
-   text = text.replace("\n", " ")
-   return embeddings.embed_query(text)
+    text = text.replace("\n", " ")
+    return embeddings.embed_query(text)
+
 
 def calculate_time(func):
-   def timing(*args, **kwargs):
-      t1 = time.time()
-      outputs = func(*args, **kwargs)
-      t2 = time.time()
-      print(f"Time: {(t2-t1):.3f}s")
-      return outputs
-   return timing
+    def timing(*args, **kwargs):
+        t1 = time.time()
+        outputs = func(*args, **kwargs)
+        t2 = time.time()
+        print(f"Time: {(t2-t1):.3f}s")
+        return outputs
+
+    return timing
 
 
 def get_response(input):
@@ -61,15 +64,17 @@ def get_response(input):
 
 
 def query_refiner(conversation, query):
-    return llm_chain.invoke(
-        {"conversation": conversation, "query": query}
-    )
+    return llm_chain.invoke({"conversation": conversation, "query": query})
 
 
 def get_conversation_string():
     conversation_string = ""
-    for i in range(len(st.session_state['responses'])-1):
-        
-        conversation_string += "Human: "+st.session_state['requests'][i] + "\n"
-        conversation_string += "Bot: "+ st.session_state['responses'][i+1] + "\n"
+    for i in range(len(st.session_state["responses"]) - 1):
+
+        conversation_string += (
+            "Human: " + st.session_state["requests"][i] + "\n"
+        )
+        conversation_string += (
+            "Bot: " + st.session_state["responses"][i + 1] + "\n"
+        )
     return conversation_string

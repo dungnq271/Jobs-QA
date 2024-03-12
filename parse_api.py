@@ -11,7 +11,7 @@ from llama_index.core import (
     VectorStoreIndex,
     Settings,
     SimpleDirectoryReader,
-    StorageContext
+    StorageContext,
 )
 from llama_parse import LlamaParse
 from llama_index.vector_stores.astra import AstraDBVectorStore
@@ -25,16 +25,16 @@ from utils import calculate_time
 nest_asyncio.apply()
 
 
-_ = load_dotenv(find_dotenv()) # read local .env file
+_ = load_dotenv(find_dotenv())  # read local .env file
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 
-embed_model=OpenAIEmbedding(
+embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
     # model="text-embedding-ada-002",
     # model="text-embedding-3-large",
     timeout=60,
-    max_tries=3
+    max_tries=3,
 )
 
 Settings.llm = OpenAI(model="gpt-3.5-turbo")
@@ -54,13 +54,19 @@ class TextList(BaseModel):
 
 
 class TextParser:
-    def __init__(self, node_parser=None, reranker=None, mode="advanced", collection_name="rag_demo"):
+    def __init__(
+        self,
+        node_parser=None,
+        reranker=None,
+        mode="advanced",
+        collection_name="rag_demo",
+    ):
         self.parser = LlamaParse(
             api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
             result_type="markdown",  # "markdown" and "text" are available
             verbose=True,
             num_workers=4,
-            language="en"
+            language="en",
         )
 
         self.mode = mode
@@ -76,25 +82,25 @@ class TextParser:
             api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
             namespace=os.getenv("ASTRA_NAMESPACE"),
             collection_name=self.collection_name,
-            embedding_dimension=1536
+            embedding_dimension=1536,
         )
-        self.storage_context = StorageContext.from_defaults(vector_store=self.vstore)
+        self.storage_context = StorageContext.from_defaults(
+            vector_store=self.vstore
+        )
         self.index = VectorStoreIndex.from_vector_store(
             self.vstore, storage_context=self.storage_context
         )
-        
+
     @calculate_time
     def parse_files(self, filepaths):
         documents = SimpleDirectoryReader(
-            input_files=filepaths,
-            file_extractor={".pdf": self.parser}
+            input_files=filepaths, file_extractor={".pdf": self.parser}
         ).load_data()
         self._parse_documents(documents)
 
     def parse_dir(self, data_dir):
         documents = SimpleDirectoryReader(
-            data_dir,
-            file_extractor={".pdf": self.parser}
+            data_dir, file_extractor={".pdf": self.parser}
         ).load_data()
         self._parse_documents(documents)
 
@@ -102,10 +108,12 @@ class TextParser:
         if not hasattr(self, "index"):
             if self.mode == "advanced":
                 nodes = self.node_parser.get_nodes_from_documents(documents)
-                base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
+                base_nodes, objects = self.node_parser.get_nodes_and_objects(
+                    nodes
+                )
                 self.index = VectorStoreIndex(
-                    nodes=base_nodes+objects,
-                    storage_context=self.storage_context
+                    nodes=base_nodes + objects,
+                    storage_context=self.storage_context,
                 )
             elif self.mode == "basic":
                 self.index = VectorStoreIndex.from_documents(
@@ -115,7 +123,9 @@ class TextParser:
                 raise NotImplementedError
         else:
             for doc in documents:
-                self.index.insert(document=doc, storage_context=self.storage_context)
+                self.index.insert(
+                    document=doc, storage_context=self.storage_context
+                )
 
         self._get_query_engine()
 
@@ -123,7 +133,7 @@ class TextParser:
         self.query_engine = self.index.as_query_engine(
             similarity_top_k=15,
             node_postprocessors=[self.reranker],
-            verbose=True
+            verbose=True,
         )
 
     @calculate_time
@@ -138,9 +148,9 @@ engine = TextParser(
         llm=OpenAI(
             model="gpt-3.5-turbo-0125",
         ),
-        num_workers=4
+        num_workers=4,
     ),
-    reranker=SimilarityPostprocessor(similarity_cutoff=0.5)
+    reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
 )
 
 
