@@ -19,6 +19,12 @@ from streamlit_chat import message
 from utils import *
 
 
+#### Hyperparams ####
+doc_dir = "./documents"
+refine_query = False
+
+
+#### Main app ####
 st.subheader("Chatbot with Langchain, ChatGPT, Pinecone, and Streamlit")
 
 if "responses" not in st.session_state:
@@ -53,7 +59,6 @@ if "buffer_memory" not in st.session_state:
 
 
 ## Upload and parse files
-doc_dir = "./documents"
 if not osp.exists(doc_dir):
     os.makedirs(doc_dir, exist_ok=True)
 
@@ -108,14 +113,13 @@ with textcontainer:
         with st.spinner("typing..."):
             conversation_string = get_conversation_string()
             # st.code(conversation_string)
-            # refined_query = query_refiner(conversation_string, query)
-            # st.subheader("Refined Query:")
-            # st.write(refined_query)
-            # context = find_match(refined_query)
-            # context = find_match(query)
-            # print(context)
-            # response = conversation.predict(input=f"Context:\n {context} \n\n Query:\n{query}")
-            response = get_response(query)
+            if refine_query:
+                refined_query = query_refiner(conversation_string, query)["text"]
+                st.subheader("Refined Query:")
+                st.write(refined_query)
+                response = get_response(refined_query)
+            else:
+                response = get_response(query)
 
         st.session_state.requests.append(query)
         st.session_state.responses.append(response)
