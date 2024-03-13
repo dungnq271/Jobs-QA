@@ -25,7 +25,9 @@ refine_query = False
 
 
 #### Main app ####
-st.subheader("Chatbot with Langchain, ChatGPT, Pinecone, and Streamlit")
+title = "Chatbot with LlamaIndex 🦙, ChatGPT, AstraDB, and Streamlit"
+# st.header(title)
+st.markdown(f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True)
 
 if "responses" not in st.session_state:
     st.session_state["responses"] = ["How can I assist you?"]
