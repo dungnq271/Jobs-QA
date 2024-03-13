@@ -68,6 +68,7 @@ class Agent:
 
     tools = []
     engine = create_engine("sqlite:///:memory:", future=True)
+    bootstrap_tool_name = "bootstrap"
     
     def __init__(
         self,
@@ -89,7 +90,7 @@ class Agent:
         self.node_parser = node_parser
         self.reranker = reranker
         self._load_index()
-        self._add_query_engine("documents/bootstrap.txt")
+        self._add_query_engine()
         self._get_agent()
 
     def _load_index(self):
@@ -113,9 +114,10 @@ class Agent:
             llm=llm,
             verbose=True,
             # context=context,
-            system_prompt=""" \
+            system_prompt=""" 
             You are an agent designed to answer queries about structured-tables.
-            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.\
+            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
+            If there is no information please answer you don't have that information.
             """,
         )
 
@@ -133,7 +135,7 @@ class Agent:
                 input_files=[filepath], file_extractor={".pdf": self.parser}
             ).load_data()
             self._parse_document(document)
-            self._add_query_engine(filepath)
+            self._add_query_engine()
 
         self._get_agent()
         print(self.tools)
@@ -171,7 +173,7 @@ class Agent:
     def _add_sql_engine(self, table_name):
         sql_tool = QueryEngineTool(
             query_engine=NLSQLTableQueryEngine(
-                sql_database=SQLDatabase(self.engine, include_tables=[table_name]), tables=table_name, llm=llm
+                sql_database=SQLDatabase(self.engine), tables=[table_name], llm=llm
             ),
             metadata=ToolMetadata(
                 name=f"sql_{table_name}",
@@ -183,26 +185,37 @@ class Agent:
         )
         self.tools.append(sql_tool)
 
-    def _add_query_engine(self, filepath):
-        filename = osp.splitext(osp.basename(filepath))[0]
+    def _add_query_engine(self):
+        self.query_engine = self.index.as_query_engine(
+            similarity_top_k=15,
+            node_postprocessors=[self.reranker],
+            verbose=True,
+        )
         query_tool = QueryEngineTool(
-            query_engine=self.index.as_query_engine(
-                similarity_top_k=15,
-                node_postprocessors=[self.reranker],
-                verbose=True,
-            ),
+            query_engine=self.query_engine,
             metadata=ToolMetadata(
-                name=f"query_{filename}",
+                name=self.bootstrap_tool_name,
                 description=(
-                    f"Useful for querying for information of document about {filename}"
+                    f"Useful for querying for information about text documents"
                 ),
             ),
         )
-        self.tools.append(query_tool)
+        # self.tools.append(query_tool)
+        if len(self.tools) == 0:
+            self.tools.append(query_tool)
+        else:
+            self.tools[0] = query_tool
 
     @calculate_time
     def chat(self, prompt: str):
-        return self.agent.chat(prompt)
+        response = "Sorry I cannot answer your query"
+        try:
+            response = self.agent.chat(prompt).response
+        except Exception as e:
+            result = self.query_engine.query(prompt).response
+            if result != "Empty Response":
+                response = result
+        return response
 
 
 engine = Agent(
