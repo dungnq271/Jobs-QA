@@ -15,14 +15,14 @@ from dotenv import load_dotenv, find_dotenv
 _ = load_dotenv(find_dotenv())  # read local .env file
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
-llm = OpenAI(model_name="gpt-3.5-turbo")
+llm = OpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"))
 
 # pc = Pinecone(api_key=os.getenv("PINECONE_API_KEY"))
 # index = pc.Index(os.getenv("PINECONE_INDEX_NAME"))
 
 
 template = """
-Given the following user query and conversation log, formulate a question that would be the most relevant to provide the user with an answer from a knowledge base.\n\nCONVERSATION LOG: \n{conversation}\n\nQuery: {query}\n\nRefined Query:
+Given the following user query and conversation log, formulate a question that would be the most relevant to provide the user with an answer from a knowledge base. Keep the user query the same if unnecessary.\n\nCONVERSATION LOG: \n{conversation}\n\nQuery: {query}\n\nRefined Query:
 """
 prompt = PromptTemplate.from_template(template)
 llm_chain = LLMChain(prompt=prompt, llm=llm)
@@ -51,16 +51,13 @@ def calculate_time(func):
 
 
 def get_response(input):
-    # result = vstore.similarity_search(input, k=3)
-    # return result.page_content
-
     response = requests.post(
         url="http://127.0.0.1:8000/query_from_text/",
         json={"text": input},
     )
     assert response.status_code == 200, response.status_code
     json_response = response.json()
-    return json_response["response"]
+    return json_response
 
 
 def query_refiner(conversation, query):
