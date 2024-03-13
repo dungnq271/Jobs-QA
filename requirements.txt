@@ -1,17 +1,19 @@
-streamlit
+estreamlit
 streamlit_chat
 
 langchain
-langchain - openai
-langchain - pinecone
-langchain - astradb
+langchain-openai
+langchain-pinecone
+langchain-astradb
 
-llama - index
-llama - parse
-llama - index - vector - stores - astra
+llama-index
+llama-parse
+llama-index-vector-stores-astra
 
-llama - index - llms - langchain
+llama-index-llms-langchain
 
 fastapi
 uvicorn
-python - dotenv
+python-dotenv
+
+ipykernel
