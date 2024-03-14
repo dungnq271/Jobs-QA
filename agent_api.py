@@ -25,6 +25,11 @@ from llama_index.core.query_engine import NLSQLTableQueryEngine
 from llama_index.core.agent import ReActAgent
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
 
+from langchain_openai import OpenAI as lc_OpenAI
+from langchain.chains import ConversationChain
+from langchain.chains.conversation.memory import ConversationBufferMemory
+
+
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import pandas as pd
@@ -43,6 +48,7 @@ mode = "advanced"
 model = "gpt-3.5-turbo"
 file_desc = False
 post_delete_index = True
+verbose = True
 
 
 #### Main app ####
@@ -89,7 +95,7 @@ class Agent:
         self.parser = LlamaParse(
             api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
             result_type="markdown",  # "markdown" and "text" are available
-            verbose=True,
+            verbose=verbose,
             num_workers=4,
             language="en",
         )
@@ -99,7 +105,7 @@ class Agent:
         self.node_parser = node_parser
         self.reranker = reranker
         self._load_index()
-        self._add_query_engine(self.bootstrap_tool_name)
+        # self._add_query_engine(self.bootstrap_tool_name)
         self._get_agent()
 
     def _load_index(self):
@@ -118,17 +124,23 @@ class Agent:
         )
 
     def _get_agent(self):
-        self.agent = ReActAgent.from_tools(
-            self.tools,
-            llm=llm,
-            verbose=True,
-            # context=context,
-            system_prompt=""" 
-            You are an agent designed to answer queries about structured tables.
-            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
-            If there is no information please answer you don't have that information.
-            """,
-        )
+        if len(self.tools) == 0:
+            self.agent = ConversationChain(
+                llm=lc_OpenAI(openai_api_key=os.getenv("OPENAI_API_KEY")),
+                verbose=verbose,
+                memory=ConversationBufferMemory()
+            )
+        else:
+            self.agent = ReActAgent.from_tools(
+                self.tools,
+                llm=llm,
+                verbose=verbose,
+                # system_prompt=""" 
+                # You are an agent designed to answer queries from user.
+                # Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
+                # If there is no information please answer you don't have that information.
+                # """,
+            )            
 
     @staticmethod
     def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
@@ -148,7 +160,6 @@ class Agent:
             self._add_query_engine(filename)
 
         self._get_agent()
-        print(self.tools)
 
     def _parse_document(self, documents):
         if not hasattr(self, "index"):
@@ -205,16 +216,23 @@ class Agent:
         if file_desc:
             desc = file_description[filename]
         else:
-            desc = ' '.join(filename.split('-')) if '-' in filename else filename
+            desc = filename
+
+        # each word in desc is separated by space character
+        if '-' in desc:
+            desc = ' '.join(desc.split('-'))
+
+        toolname = '_'.join(["query"] + desc.split())
+
         self.query_engine = self.index.as_query_engine(
             similarity_top_k=15,
             node_postprocessors=[self.reranker],
-            verbose=True,
+            verbose=verbose,
         )
         query_tool = QueryEngineTool(
             query_engine=self.query_engine,
             metadata=ToolMetadata(
-                name=f"query_{filename}",
+                name=toolname,
                 description=(
                     "Useful for querying for information"
                     f"from text documents about {desc}"
@@ -228,13 +246,26 @@ class Agent:
 
     @calculate_time
     def chat(self, prompt: str):
-        response = "Sorry I cannot answer your query"
-        try:
-            response = self.agent.chat(prompt).response
-        except Exception as e:
-            result = self.query_engine.query(prompt).response
-            if result != "Empty Response":
-                response = result
+        auto_response = "Sorry I cannot find information to answer your query"
+
+        if len(self.tools) == 0:
+            response = self.agent.invoke(prompt)["response"]
+        else:
+            try:
+                response = self.agent.chat(prompt)
+                if verbose:
+                    if "sql_query" in response.sources[0].raw_output.metadata:
+                        print(response.sources[0].raw_output.metadata["sql_query"])
+                response = response.response
+
+            except Exception as e:
+                response = self.query_engine.query(prompt).response
+                if response in ["Empty Response"]:
+                    response = auto_response
+
+        if len(response) == 0:
+            response = auto_response
+
         return response
 
 
@@ -273,11 +304,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.post("/query_from_text/", status_code=200)
-async def query_from_text(prompt: TextInput):
+@app.post("/query", status_code=200)
+async def query(prompt: TextInput):
     return agents["answer_to_everything"].chat(prompt.text)
 
 
-@app.put("/update_text/", status_code=200)
-async def update_text(filepath: TextInput):
+@app.put("/update", status_code=200)
+async def update(filepath: TextInput):
     agents["answer_to_everything"].parse_file(filepath.text)
