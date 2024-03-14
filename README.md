@@ -1,1 +1,1 @@
-# RAG-multi-documents
+# RAG for multiple documents
