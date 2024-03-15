@@ -17,7 +17,8 @@ from llama_index.core import (
 )
 from llama_parse import LlamaParse
 from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.core.node_parser import MarkdownElementNodeParser
+from llama_index.core.node_parser import MarkdownElementNodeParser, UnstructuredElementNodeParser
+from llama_index.readers.file import FlatReader
 from llama_index.core import SQLDatabase
 from llama_index.core.postprocessor import SimilarityPostprocessor
 
@@ -63,6 +64,7 @@ embed_model = OpenAIEmbedding(
     max_tries=3,
 )
 
+reader = FlatReader()
 llm = OpenAI(model=model)
 
 Settings.llm = llm
@@ -124,23 +126,23 @@ class Agent:
         )
 
     def _get_agent(self):
-        if len(self.tools) == 0:
-            self.agent = ConversationChain(
-                llm=lc_OpenAI(openai_api_key=os.getenv("OPENAI_API_KEY")),
-                verbose=verbose,
-                memory=ConversationBufferMemory()
-            )
-        else:
-            self.agent = ReActAgent.from_tools(
-                self.tools,
-                llm=llm,
-                verbose=verbose,
-                # system_prompt=""" 
-                # You are an agent designed to answer queries from user.
-                # Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
-                # If there is no information please answer you don't have that information.
-                # """,
-            )            
+        # if len(self.tools) == 0:
+        #     self.agent = ConversationChain(
+        #         llm=lc_OpenAI(openai_api_key=os.getenv("OPENAI_API_KEY")),
+        #         verbose=verbose,
+        #         memory=ConversationBufferMemory()
+        #     )
+        # else:
+        self.agent = ReActAgent.from_tools(
+            self.tools,
+            llm=llm,
+            verbose=verbose,
+            system_prompt=""" 
+            You are an agent designed to answer queries from user.
+            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
+            If there is no information please answer you don't have that information.
+            """,
+        )            
 
     @staticmethod
     def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
@@ -151,20 +153,27 @@ class Agent:
         if ".csv" in filepath:
             table_name = self._add_table(filepath)
             self._add_sql_engine(table_name)
+        # elif ".pptx" in filepath:
+        #     document = reader.load_data(filepath)
+        #     filename = self._add_text_file(filepath)
+        #     self._parse_document(document, self.node_parser[".pptx"])
+        #     self._add_query_engine(filename)
         else:
             document = SimpleDirectoryReader(
-                input_files=[filepath], file_extractor={".pdf": self.parser}
+                input_files=[filepath], file_extractor={
+                    suff: self.parser for suff in [".pdf", ".pptx"]
+                }
             ).load_data()
             filename = self._add_text_file(filepath)
-            self._parse_document(document)
+            self._parse_document(document, self.node_parser[".pdf"])
             self._add_query_engine(filename)
 
         self._get_agent()
 
-    def _parse_document(self, documents):
+    def _parse_document(self, documents, node_parser):
         if not hasattr(self, "index"):
             if self.mode == "advanced":
-                nodes = self.node_parser.get_nodes_from_documents(documents)
+                nodes = node_parser.get_nodes_from_documents(documents)
                 base_nodes, objects = self.node_parser.get_nodes_and_objects(
                     nodes
                 )
@@ -289,10 +298,13 @@ async def lifespan(app: FastAPI):
     agents["answer_to_everything"] = Agent(
         mode=mode,
         collection_name=table_name,
-        node_parser=MarkdownElementNodeParser(
-            llm=llm,
-            num_workers=4,
-        ),
+        node_parser={
+            ".pdf": MarkdownElementNodeParser(
+                llm=llm,
+                num_workers=8,
+            ),
+            # ".pptx": UnstructuredElementNodeParser()
+        },
         reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
     )
     yield
