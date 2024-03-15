@@ -1,4 +1,4 @@
-estreamlit
+streamlit
 streamlit_chat
 
 langchain
@@ -9,6 +9,7 @@ langchain-astradb
 llama-index
 llama-parse
 llama-index-vector-stores-astra
+llama-index-readers-file
 
 llama-index-llms-langchain
 
@@ -17,3 +18,4 @@ uvicorn
 python-dotenv
 
 ipykernel
+unstructured[docx,pptx]
