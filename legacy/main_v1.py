@@ -27,7 +27,9 @@ refine_query = False
 #### Main app ####
 title = "Chatbot with LlamaIndex 🦙, ChatGPT, AstraDB, and Streamlit"
 # st.header(title)
-st.markdown(f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True)
+st.markdown(
+    f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True
+)
 
 if "responses" not in st.session_state:
     st.session_state["responses"] = ["How can I assist you?"]
@@ -116,7 +118,9 @@ with textcontainer:
             conversation_string = get_conversation_string()
             # st.code(conversation_string)
             if refine_query:
-                refined_query = query_refiner(conversation_string, query)["text"]
+                refined_query = query_refiner(conversation_string, query)[
+                    "text"
+                ]
                 st.subheader("Refined Query:")
                 st.write(refined_query)
                 response = get_response(refined_query)

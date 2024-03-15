@@ -15,12 +15,16 @@ refine_query = False
 
 #### Main app ####
 title = "Chatbot with LlamaIndex 🦙, ChatGPT, AstraDB, and Streamlit"
-st.markdown(f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True)
+st.markdown(
+    f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True
+)
 
 
 # Initialize chat history
 if "messages" not in st.session_state:
-    st.session_state.messages = [{"role": "assistant", "content": "Hello. How can I assist you?"}]
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Hello. How can I assist you?"}
+    ]
 
 if "documents" not in st.session_state:
     st.session_state["documents"] = []
@@ -41,7 +45,7 @@ with st.sidebar:
     st.header("File Upload Options")
     uploaded_files = st.file_uploader(
         f"# Upload files",
-        type=["txt", "csv", "pdf"],
+        type=["txt", "csv", "pdf", "pptx", "ppt"],
         accept_multiple_files=True,
         # label_visibility="hidden"
     )
@@ -88,7 +92,9 @@ if prompt := st.chat_input("What is up?"):
         response = st.write_stream(response_generator(response))
 
     # Add assistant response to chat history
-    st.session_state.messages.append({"role": "assistant", "content": response})
+    st.session_state.messages.append(
+        {"role": "assistant", "content": response}
+    )
 
 
 asyncio.run(parse_job())
