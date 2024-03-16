@@ -45,7 +45,7 @@ with st.sidebar:
     st.header("File Upload Options")
     uploaded_files = st.file_uploader(
         f"# Upload files",
-        type=["txt", "csv", "pdf", "pptx", "ppt"],
+        type=["txt", "csv", "pdf", "pptx", "ppt", "jpg", "png"],
         accept_multiple_files=True,
         # label_visibility="hidden"
     )
