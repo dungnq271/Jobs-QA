@@ -3,9 +3,9 @@
 ## Supported Documents
 - [x] .pdf, .pptx
 - [x] .csv
-- [] .jpg, .png
+- [ ] .jpg, .png
   - [x] ocr
-  - [] description
+  - [ ] description
 
 ## Setup
 ```
