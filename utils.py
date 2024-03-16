@@ -3,7 +3,6 @@ import requests
 import time
 
 from pinecone import Pinecone
-from langchain_astradb import AstraDBVectorStore
 from langchain.chains import LLMChain
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
