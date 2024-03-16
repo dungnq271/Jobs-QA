@@ -10,6 +10,7 @@ from contextlib import asynccontextmanager
 from llama_index.llms.openai import OpenAI
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core import (
+    Document,
     VectorStoreIndex,
     Settings,
     SimpleDirectoryReader,
@@ -30,11 +31,12 @@ from langchain_openai import OpenAI as lc_OpenAI
 from langchain.chains import ConversationChain
 from langchain.chains.conversation.memory import ConversationBufferMemory
 
-
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import pandas as pd
 from astrapy.db import AstraDB
+# from unstructured.partition.image import partition_image
+from paddleocr import PaddleOCR
 
 from utils import calculate_time
 from misc import file_description
@@ -64,7 +66,8 @@ embed_model = OpenAIEmbedding(
     max_tries=3,
 )
 
-reader = FlatReader()
+# reader = FlatReader()
+ocr = PaddleOCR(lang='en')
 llm = OpenAI(model=model)
 
 Settings.llm = llm
@@ -136,7 +139,7 @@ class Agent:
         self.agent = ReActAgent.from_tools(
             self.tools,
             llm=llm,
-            verbose=verbose,
+            verbose=True,
             system_prompt=""" 
             You are an agent designed to answer queries from user.
             Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
@@ -150,22 +153,31 @@ class Agent:
 
     @calculate_time
     def parse_file(self, filepath):
-        if ".csv" in filepath:
+        suff = osp.splitext(filepath)[-1]
+
+        if suff == ".csv":
             table_name = self._add_table(filepath)
             self._add_sql_engine(table_name)
-        # elif ".pptx" in filepath:
-        #     document = reader.load_data(filepath)
-        #     filename = self._add_text_file(filepath)
-        #     self._parse_document(document, self.node_parser[".pptx"])
-        #     self._add_query_engine(filename)
         else:
-            document = SimpleDirectoryReader(
-                input_files=[filepath], file_extractor={
-                    suff: self.parser for suff in [".pdf", ".pptx"]
-                }
-            ).load_data()
+            if suff in [".jpg", ".png"]:
+                # elements = partition_image(filepath)
+                # extracted_text = '\n\n'.join([elem.text for elem in elements])
+                elements = ocr.ocr(filepath, cls=False)
+                extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
+                if verbose:
+                    print(extracted_text)
+                document = [Document(text=extracted_text)]
+            elif suff in [".pdf", ".pptx"]:
+                document = SimpleDirectoryReader(
+                    input_files=[filepath], file_extractor={
+                        suff: self.parser for suff in [".pdf", ".pptx"]
+                    }
+                ).load_data()
+            else:
+                raise NotImplementedError
+
             filename = self._add_text_file(filepath)
-            self._parse_document(document, self.node_parser[".pdf"])
+            self._parse_document(document, self.node_parser)
             self._add_query_engine(filename)
 
         self._get_agent()
@@ -298,13 +310,10 @@ async def lifespan(app: FastAPI):
     agents["answer_to_everything"] = Agent(
         mode=mode,
         collection_name=table_name,
-        node_parser={
-            ".pdf": MarkdownElementNodeParser(
-                llm=llm,
-                num_workers=8,
-            ),
-            # ".pptx": UnstructuredElementNodeParser()
-        },
+        node_parser=MarkdownElementNodeParser(
+            llm=llm,
+            num_workers=8,
+        ),
         reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
     )
     yield
