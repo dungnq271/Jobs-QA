@@ -4,7 +4,9 @@ streamlit_chat
 langchain
 langchain-openai
 langchain-pinecone
-langchain-astradb
+langchain-community
+langchainhub
+chromadb
 
 llama-index
 llama-parse
@@ -18,4 +20,6 @@ uvicorn
 python-dotenv
 
 ipykernel
-unstructured[docx,pptx]
+paddlepaddle
+paddleocr
+unstructured[image,pdf,docx,pptx]
