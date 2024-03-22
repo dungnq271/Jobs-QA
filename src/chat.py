@@ -62,7 +62,6 @@ embed_model = OpenAIEmbedding(
     max_tries=3,
 )
 
-# reader = FlatReader()
 # ocr = PaddleOCR(lang='en')
 llm = OpenAI(model=model)
 
@@ -98,7 +97,6 @@ class Agent:
             num_workers=8,
             language="en",
         )
-
         self.mode = mode
         self.collection_name = collection_name
         self.node_parser = node_parser
@@ -138,7 +136,6 @@ class Agent:
                     suff: self.parser for suff in [".pdf", ".pptx"]
                 }
             ).load_data()
-
         else:
             raise NotImplementedError
 
@@ -213,7 +210,7 @@ agents = {}
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Load the agent
+    # Load the agent when startup
     agents["answer_to_everything"] = Agent(
         mode=mode,
         collection_name=table_name,
@@ -224,7 +221,7 @@ async def lifespan(app: FastAPI):
         reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
     )
     yield
-    # Clean up the data resources    
+    # Clean up the data resources after stopping app
     if post_delete_index:
         delete_table()
 
