@@ -231,9 +231,11 @@ app = FastAPI(lifespan=lifespan)
 
 @app.post("/query", status_code=200)
 async def query(prompt: TextInput):
+    """Lấy response từ agent"""
     return agents["answer_to_everything"].chat(prompt.text)
 
 
 @app.put("/update", status_code=200)
 async def update(filepath: TextInput):
+    """Add file path vào trong index của agent"""
     agents["answer_to_everything"].add_tool_for_file(filepath.text)
