@@ -68,6 +68,7 @@ async def parse_file(
     return new_files
 
 
+# Call api để add các document vào index của chatbot
 async def parse_job():
     new_files = await asyncio.gather(
         *[
