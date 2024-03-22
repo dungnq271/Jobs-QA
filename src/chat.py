@@ -142,7 +142,6 @@ class Agent:
         else:
             raise NotImplementedError
 
-        toolname, description = self._get_meta_doc(filepath)
         # Add document vào index
         self._parse_document(document, self.node_parser)
         # Lấy query engine và cập nhật index chat engine
@@ -171,26 +170,6 @@ class Agent:
                 self.index.insert(
                     document=doc, storage_context=self.storage_context
                 )
-
-    def _get_meta_doc(self, filepath):
-        filename = osp.basename(filepath)
-        filename = osp.splitext(filename)[0]
-
-        if file_desc:
-            fdesc = file_description[filename]
-        else:
-            fdesc = filename
-
-        # mỗi từ trong mô tả được ngăn cách bằng ' '
-        if '-' in fdesc:
-            fdesc = ' '.join(fdesc.split('-'))
-        description = query_text_description.format(description=fdesc)
-
-        # tên của tool là 'query' cùng với các từ trong
-        # tên file được ngăn cách bằng '_'
-        toolname = '_'.join(["query"] + fdesc.split())
-        
-        return toolname, description
 
     def _get_query_engine(self):
         query_engine = self.index.as_query_engine(
