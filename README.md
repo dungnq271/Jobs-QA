@@ -23,9 +23,17 @@ pip install paddlepaddle paddleocr
 ## Run
 **Open 1 tab and run**:
 
-V1 (bot with only index query): `./scripts/api_chat.sh`
+V1 (bot with only index query):
+```
+./scripts/api_chat.sh
+```
 
-V2 (multi-tool bot): `./scripts/api_agent.sh`
+V2 (multi-tool bot):
+```
+./scripts/api_agent.sh
+```
 
 **Wait for api startup complete and run in another tab**:
-`./scripts/app.sh`
+```
+./scripts/app.sh
+```
