@@ -19,27 +19,23 @@ from llama_index.core import (
 from llama_parse import LlamaParse
 from llama_index.vector_stores.astra import AstraDBVectorStore
 from llama_index.core.node_parser import MarkdownElementNodeParser, UnstructuredElementNodeParser
-from llama_index.readers.file import FlatReader
 from llama_index.core import SQLDatabase
 from llama_index.core.postprocessor import SimilarityPostprocessor
 
 from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.core.chat_engine import CondenseQuestionChatEngine
 from llama_index.core.agent import ReActAgent
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
-
-from langchain_openai import OpenAI as lc_OpenAI
-from langchain.chains import ConversationChain
-from langchain.chains.conversation.memory import ConversationBufferMemory
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import pandas as pd
 from astrapy.db import AstraDB
 # from unstructured.partition.image import partition_image
-from paddleocr import PaddleOCR
+# from paddleocr import PaddleOCR
 
 from utils import calculate_time
-from misc import file_description
+from misc import *
 
 
 nest_asyncio.apply()
@@ -67,7 +63,7 @@ embed_model = OpenAIEmbedding(
 )
 
 # reader = FlatReader()
-ocr = PaddleOCR(lang='en')
+# ocr = PaddleOCR(lang='en')
 llm = OpenAI(model=model)
 
 Settings.llm = llm
@@ -84,11 +80,9 @@ class TextList(BaseModel):
 
 
 class Agent:
-
     tools = []
+    # Tạo object kết nối với database
     engine = create_engine("sqlite:///:memory:", future=True)
-    text_filenames = []
-    bootstrap_tool_name = "bootstrap"
     
     def __init__(
         self,
@@ -101,7 +95,7 @@ class Agent:
             api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
             result_type="markdown",  # "markdown" and "text" are available
             verbose=verbose,
-            num_workers=4,
+            num_workers=8,
             language="en",
         )
 
@@ -110,10 +104,24 @@ class Agent:
         self.node_parser = node_parser
         self.reranker = reranker
         self._load_index()
-        # self._add_query_engine(self.bootstrap_tool_name)
-        self._get_agent()
+        _, self.query_chat_engine = self._get_query_engine()
+
+    @staticmethod
+    def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+        """Thêm pandas DataFrame vào SQL Engine"""
+        pandas_df.to_sql(table_name, engine)
+
+    def get_agent(self):
+        self.agent = ReActAgent.from_tools(
+            self.tools,
+            llm=llm,
+            verbose=True,
+            system_prompt=system_prompt
+        )            
 
     def _load_index(self):
+        # Load vector database, có thể thay đổi thành các loại vectordb trong llamaindex
+        # ở đây đang dùng astradb
         self.vstore = AstraDBVectorStore(
             token=os.getenv("ASTRA_TOKEN"),
             api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
@@ -128,62 +136,48 @@ class Agent:
             self.vstore, storage_context=self.storage_context
         )
 
-    def _get_agent(self):
-        # if len(self.tools) == 0:
-        #     self.agent = ConversationChain(
-        #         llm=lc_OpenAI(openai_api_key=os.getenv("OPENAI_API_KEY")),
-        #         verbose=verbose,
-        #         memory=ConversationBufferMemory()
-        #     )
-        # else:
-        self.agent = ReActAgent.from_tools(
-            self.tools,
-            llm=llm,
-            verbose=True,
-            system_prompt=""" 
-            You are an agent designed to answer queries from user.
-            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
-            If there is no information please answer you don't have that information.
-            """,
-        )            
-
-    @staticmethod
-    def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
-        pandas_df.to_sql(table_name, engine)
-
     @calculate_time
-    def parse_file(self, filepath):
+    def add_tool_for_file(self, filepath):
+        """
+        Add tool cho agent, tùy theo hậu tố là .csv hay .pdf, ...
+        mà add tool với hàm tương ứng
+        """
         suff = osp.splitext(filepath)[-1]
 
         if suff == ".csv":
-            table_name = self._add_table(filepath)
-            self._add_sql_engine(table_name)
+            toolname, description, table_name = self._get_meta_table(filepath)
+            engine = self._get_sql_engine(table_name)
         else:
-            if suff in [".jpg", ".png"]:
-                # elements = partition_image(filepath)
-                # extracted_text = '\n\n'.join([elem.text for elem in elements])
-                elements = ocr.ocr(filepath, cls=False)
-                extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
-                if verbose:
-                    print(extracted_text)
-                document = [Document(text=extracted_text)]
-            elif suff in [".pdf", ".pptx"]:
+            # if suff in [".jpg", ".png"]:
+            #     elements = ocr.ocr(filepath, cls=False)
+            #     extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
+            #     if verbose:
+            #         print(extracted_text)
+            #     document = [Document(text=extracted_text)]
+
+            if suff in [".txt", ".pdf", ".pptx"]:
                 document = SimpleDirectoryReader(
                     input_files=[filepath], file_extractor={
                         suff: self.parser for suff in [".pdf", ".pptx"]
                     }
                 ).load_data()
+
             else:
                 raise NotImplementedError
 
-            filename = self._add_text_file(filepath)
+            toolname, description = self._get_meta_doc(filepath)
+            # Add document vào index
             self._parse_document(document, self.node_parser)
-            self._add_query_engine(filename)
-
-        self._get_agent()
+            # Lấy query engine và cập nhật index chat engine
+            engine, self.query_chat_engine = self._get_query_engine()
+            
+        # toolname, description là tên tool với mô tả của tool đó
+        # cần cho agent chọn tool
+        self._add_tool(toolname, description, engine)
+        self.get_agent()
 
     def _parse_document(self, documents, node_parser):
-        if not hasattr(self, "index"):
+        if not hasattr(self, "index"):  # khởi tạo index lần đầu
             if self.mode == "advanced":
                 nodes = node_parser.get_nodes_from_documents(documents)
                 base_nodes, objects = self.node_parser.get_nodes_and_objects(
@@ -200,89 +194,95 @@ class Agent:
             else:
                 raise NotImplementedError
         else:
+            # nếu có index rồi thì thêm các document vào index
             for doc in documents:
                 self.index.insert(
                     document=doc, storage_context=self.storage_context
                 )
 
-    def _add_table(self, filepath):
+    def _get_meta_table(self, filepath):
         filename = osp.basename(filepath)
         table_name = osp.splitext(filename)[0]
         df = pd.read_csv(filepath)
         self.add_df_to_sql_database(table_name, df, self.engine)
-        return table_name
+        toolname = f"sql_{table_name}"
 
-    def _add_text_file(self, filepath):
+        if file_desc:
+            fdesc = file_description[table_name]
+        else:
+            fdesc = table_name
+
+        description = query_sql_description.format(description=fdesc)
+        return toolname, description, table_name
+
+    def _get_meta_doc(self, filepath):
         filename = osp.basename(filepath)
         filename = osp.splitext(filename)[0]
-        self.text_filenames.append(filename)
-        return filename
 
-    def _add_sql_engine(self, table_name):
-        sql_tool = QueryEngineTool(
-            query_engine=NLSQLTableQueryEngine(
-                sql_database=SQLDatabase(self.engine), tables=[table_name], llm=llm
-            ),
-            metadata=ToolMetadata(
-                name=f"sql_{table_name}",
-                description=(
-                    "Useful for translating a natural language query into an SQL query over table"
-                    f"{file_description[table_name]}"
-                ),
-            ),
-        )
-        self.tools.append(sql_tool)
-
-    def _add_query_engine(self, filename):
         if file_desc:
-            desc = file_description[filename]
+            fdesc = file_description[filename]
         else:
-            desc = filename
+            fdesc = filename
 
-        # each word in desc is separated by space character
-        if '-' in desc:
-            desc = ' '.join(desc.split('-'))
+        # mỗi từ trong mô tả được ngăn cách bằng ' '
+        if '-' in fdesc:
+            fdesc = ' '.join(fdesc.split('-'))
+        description = query_text_description.format(description=fdesc)
 
-        toolname = '_'.join(["query"] + desc.split())
+        # tên của tool là 'query' cùng với các từ trong
+        # tên file được ngăn cách bằng '_'
+        toolname = '_'.join(["query"] + fdesc.split())
+        
+        return toolname, description
 
-        self.query_engine = self.index.as_query_engine(
+    def _get_sql_engine(self, table_name):
+        return NLSQLTableQueryEngine(
+            sql_database=SQLDatabase(self.engine), tables=[table_name], llm=llm
+        )
+
+    def _get_query_engine(self):
+        query_engine = self.index.as_query_engine(
             similarity_top_k=15,
             node_postprocessors=[self.reranker],
             verbose=verbose,
         )
+        return \
+        query_engine, \
+        CondenseQuestionChatEngine.from_defaults(
+            query_engine=query_engine,
+            condense_question_prompt=custom_prompt,
+            chat_history=[],
+            verbose=True,
+        )
+
+    def _add_tool(self, toolname, description, engine):
         query_tool = QueryEngineTool(
-            query_engine=self.query_engine,
+            query_engine=engine,
             metadata=ToolMetadata(
                 name=toolname,
-                description=(
-                    "Useful for querying for information"
-                    f"from text documents about {desc}"
-                ),
+                description=description
             ),
         )
-        if len(self.tools) > 0:
-            if self.tools[0].metadata.name == self.bootstrap_tool_name:
-                self.tools.pop(0)
         self.tools.append(query_tool)
 
     @calculate_time
     def chat(self, prompt: str):
         auto_response = "Sorry I cannot find information to answer your query"
 
-        if len(self.tools) == 0:
-            response = self.agent.invoke(prompt)["response"]
-        else:
-            try:
-                response = self.agent.chat(prompt)
-                if verbose:
-                    if "sql_query" in response.sources[0].raw_output.metadata:
-                        print(response.sources[0].raw_output.metadata["sql_query"])
-                response = response.response
+        try:
+            # mặc định cho ReAct agent chat
+            response = self.agent.chat(prompt)
+            # kiểm tra lệnh sql agent dùng nếu query bảng
+            if verbose:
+                if "sql_query" in response.sources[0].raw_output.metadata:
+                    print(response.sources[0].raw_output.metadata["sql_query"])
+            response = response.response
 
-            except Exception as e:
-                response = self.query_engine.query(prompt).response
-                if response in ["Empty Response"]:
-                    response = auto_response
+        except Exception as e:
+            # đề phòng xảy ra lỗi thì sử dụng index chat engine để chat
+            response = self.query_chat_engine.chat(prompt).response
+            if response in ["Empty Response"]:
+                response = auto_response
 
         if len(response) == 0:
             response = auto_response
@@ -332,4 +332,4 @@ async def query(prompt: TextInput):
 
 @app.put("/update", status_code=200)
 async def update(filepath: TextInput):
-    agents["answer_to_everything"].parse_file(filepath.text)
+    agents["answer_to_everything"].add_tool_for_file(filepath.text)
