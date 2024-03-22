@@ -144,7 +144,7 @@ class Agent:
             
     def _parse_document(self, documents, node_parser):
         if not hasattr(self, "index"):  # khởi tạo index lần đầu
-            if self.mode == "advanced":
+            if self.mode == "advanced":  # Recursive Retriever sẽ cho kết quả tốt hơn
                 nodes = node_parser.get_nodes_from_documents(documents)
                 base_nodes, objects = self.node_parser.get_nodes_and_objects(
                     nodes
@@ -153,7 +153,7 @@ class Agent:
                     nodes=base_nodes + objects,
                     storage_context=self.storage_context,
                 )
-            elif self.mode == "basic":
+            elif self.mode == "basic":  # Basic Retriever
                 self.index = VectorStoreIndex.from_documents(
                     documents, storage_context=self.storage_context
                 )
