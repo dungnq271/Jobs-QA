@@ -1,3 +1,4 @@
+openai
 streamlit
 streamlit_chat
 
@@ -20,6 +21,6 @@ uvicorn
 python-dotenv
 
 ipykernel
-paddlepaddle
-paddleocr
-unstructured[image,pdf,docx,pptx]
+# paddlepaddle
+# paddleocr
+# unstructured[image,pdf,docx,pptx]
