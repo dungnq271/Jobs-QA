@@ -133,7 +133,7 @@ class Agent:
         suff = osp.splitext(filepath)[-1]
 
         if suff in [".txt", ".pdf", ".pptx"]:
-            document = SimpleDirectoryReader(
+            documents = SimpleDirectoryReader(
                 input_files=[filepath], file_extractor={
                     suff: self.parser for suff in [".pdf", ".pptx"]
                 }
@@ -142,9 +142,7 @@ class Agent:
         else:
             raise NotImplementedError
 
-        # Add document vào index
-        self._parse_document(document, self.node_parser)
-        # Lấy query engine và cập nhật index chat engine
+        self._parse_document(documents, self.node_parser)  # Add document vào index
         self.query_chat_engine = self._get_query_engine()
             
     def _parse_document(self, documents, node_parser):
