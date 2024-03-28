@@ -12,6 +12,8 @@ chromadb
 llama-index
 llama-parse
 llama-index-vector-stores-astra
+llama-index-vector-stores-qdrant
+qdrant_client
 llama-index-readers-file
 
 llama-index-llms-langchain
