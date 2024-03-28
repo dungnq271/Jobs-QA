@@ -37,7 +37,7 @@ If there is no information please answer you don't have that information.
 query_text_description = \
 """
 Useful for querying for information
-from text documents about {description}
+from text documents about {file_description}
 """
 
 
