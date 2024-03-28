@@ -8,31 +8,28 @@ from typing import List
 from contextlib import asynccontextmanager
 
 from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.core import (
-    Document,
-    VectorStoreIndex,
     Settings,
-    SimpleDirectoryReader,
+    VectorStoreIndex,
     StorageContext,
+    SQLDatabase
 )
-from llama_parse import LlamaParse
-from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.core.node_parser import MarkdownElementNodeParser, UnstructuredElementNodeParser
-from llama_index.core import SQLDatabase
-from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.core.schema import TextNode
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+import qdrant_client
 
-from llama_index.core.query_engine import NLSQLTableQueryEngine
-from llama_index.core.chat_engine import CondenseQuestionChatEngine
-from llama_index.core.agent import ReActAgent
-from llama_index.core.tools import QueryEngineTool, ToolMetadata
+from llama_index.core.retrievers import VectorIndexAutoRetriever
+from llama_index.core.vector_stores import MetadataInfo, VectorStoreInfo
+from llama_index.core.query_engine import (
+    RetrieverQueryEngine,
+    NLSQLTableQueryEngine,
+    SQLAutoVectorQueryEngine
+)
+from llama_index.core.tools import QueryEngineTool
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
 import pandas as pd
-from astrapy.db import AstraDB
-# from unstructured.partition.image import partition_image
-# from paddleocr import PaddleOCR
 
 from utils import calculate_time
 from misc import *
@@ -42,10 +39,8 @@ nest_asyncio.apply()
 
 
 #### Hyperparams ####
-table_name = "rag_demo"
-mode = "advanced"
+table_name = "jobPosted"
 model = "gpt-3.5-turbo"
-file_desc = False
 post_delete_index = True
 verbose = True
 
@@ -56,18 +51,14 @@ os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 
 embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
-    # model="text-embedding-ada-002",
-    # model="text-embedding-3-large",
     timeout=60,
     max_tries=3,
 )
 
-# ocr = PaddleOCR(lang='en')
 llm = OpenAI(model=model)
 
 Settings.llm = llm
 Settings.embed_model = embed_model
-Settings.chunk_size = 512
 
 
 class TextInput(BaseModel):
@@ -105,22 +96,26 @@ class Agent:
         self._load_index()
         self.query_chat_engine = self._get_query_engine()
 
+    @staticmethod
+    def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+        """Thêm pandas DataFrame vào SQL Engine"""
+        pandas_df.to_sql(table_name, engine)
+
     def _load_index(self):
-        # Load vector database, có thể thay đổi thành các loại vectordb trong llamaindex
-        # ở đây đang dùng astradb
-        self.vstore = AstraDBVectorStore(
-            token=os.getenv("ASTRA_TOKEN"),
-            api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
-            namespace=os.getenv("ASTRA_NAMESPACE"),
-            collection_name=self.collection_name,
-            embedding_dimension=1536,
+        client = qdrant_client.QdrantClient(
+            # you can use :memory: mode for fast and light-weight experiments,
+            # it does not require to have Qdrant deployed anywhere
+            # but requires qdrant-client >= 1.1.1
+            location=":memory:"
+            # otherwise set Qdrant instance address with:
+            # uri="http://<host>:<port>"
+            # set API KEY for Qdrant Cloud
+            # api_key="<qdrant-api-key>",
         )
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.vstore
-        )
-        self.index = VectorStoreIndex.from_vector_store(
-            self.vstore, storage_context=self.storage_context
-        )
+
+        vector_store = QdrantVectorStore(client=client, collection_name="jobs_posted")
+        storage_context = StorageContext.from_defaults(vector_store=vector_store)
+        self.vector_index = VectorStoreIndex([], storage_context=storage_context)        
 
     @calculate_time
     def add_tool_for_file(self, filepath):
@@ -136,6 +131,9 @@ class Agent:
                     suff: self.parser for suff in [".pdf", ".pptx"]
                 }
             ).load_data()
+        if suff == ".csv":
+            toolname, description, table_name = self._get_meta_table(filepath)
+            engine = self._get_sql_engine(table_name)
         else:
             raise NotImplementedError
 
@@ -192,17 +190,6 @@ class Agent:
             response = auto_response
 
         return response
-
-
-def delete_table():
-    # Drop the table created for this session
-    db = AstraDB(
-        token=os.getenv("ASTRA_TOKEN"),
-        api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
-        namespace=os.getenv("ASTRA_NAMESPACE"),
-    )
-    db.delete_collection(collection_name=table_name)
-    print("----------------------APP EXITED----------------------")
 
 
 agents = {}
