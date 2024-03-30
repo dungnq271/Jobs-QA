@@ -7,13 +7,16 @@ langchain-openai
 langchain-pinecone
 langchain-community
 langchainhub
+
 chromadb
+qdrant_client
 
 llama-index
 llama-parse
 llama-index-vector-stores-astra
 llama-index-vector-stores-qdrant
-qdrant_client
+llama-index-agent-openai-legacy
+llama-index-llms-anthropic
 llama-index-readers-file
 
 llama-index-llms-langchain
