@@ -46,11 +46,16 @@ storage_context = StorageContext.from_defaults(vector_store=vector_store)
 vector_index = VectorStoreIndex([], storage_context=storage_context)
 
 # %%
-llm = OpenAI(model="gpt-3.5-turbo-instruct")
-llm = Anthropic(model="claude-3-sonnet")
+# llm = OpenAI(model="gpt-3.5-turbo-instruct")
+llm = OpenAI(model="gpt-3.5-turbo")
 Settings.llm = llm
-Settings.tokenizer = Anthropic().tokenizer
 
+# %% [markdown]
+# Using Anthropic
+
+# %%
+llm = Anthropic(model="claude-3-sonnet")
+Settings.tokenizer = Anthropic().tokenizer
 resp = llm.complete("Paul Graham is ")
 print(resp)
 
@@ -70,6 +75,14 @@ engine = create_engine("sqlite:///:memory:", future=True)
 
 # %%
 df = pd.read_csv("../../documents/job_vn_posted_full_recent_v2.csv")
+df.head()
+
+# %%
+df.columns
+
+# %%
+new_col = "Number-of-days-posted-ago"
+df = df.rename(columns={"Posted": new_col})
 df.columns
 
 # %%
@@ -96,7 +109,7 @@ sql_query_engine = NLSQLTableQueryEngine(
 
 # %%
 cols = df.columns.tolist()
-acc_cols = ["Posted", "Full / Part Time", "Salary", "Link"]
+acc_cols = [new_col, "Full / Part Time", "Salary", "Link"]
 
 # %%
 row = result[0][-2]
@@ -127,6 +140,7 @@ for row in result:
     nodes.extend(sub_nodes)
 
 # %%
+%%time
 vector_index.insert_nodes(nodes)
 
 # %%
@@ -137,7 +151,7 @@ vector_store_info = VectorStoreInfo(
     content_info="AI Engineer job information of different companies",
     metadata_info=[
         MetadataInfo(
-            name="Posted", type="str", description="How many days ago was the job posted"
+            name=new_col, type="str", description="How many days ago was the job posted in Vietnamese"
         ),
         MetadataInfo(
             name="Full / Part Time", type="str", description="Working time for the job"
@@ -181,9 +195,8 @@ vector_tool = QueryEngineTool.from_defaults(
 
 # %%
 query_1 = "List me all the links to jobs which include both NLP and Computer Vision"
-# query = "List me the salary of the top 3 most recent posted jobs?"
-# query = "List me the top skills in demand for all the jobs?"
 query_2 = "List me all the links to jobs which demand only 1 year of experience"
+query_3 = "List me the salary of the top 3 most recent posted jobs?"
 
 # %% [markdown]
 ### Using SQLAutoVectorQueryEngine
@@ -194,12 +207,33 @@ sqlauto_engine = SQLAutoVectorQueryEngine(
 )
 
 # %%
+query = query_1
+response = sqlauto_engine.query(query)
+
+# %%
+print(response)
+
+# %%
+for i, node in enumerate(response.source_nodes):
+    print(f"Node {i+1} Text:\n", node.text)
+
+# %%
 query = query_2
 response = sqlauto_engine.query(query)
 print(response)
 
 # %%
-response.__dict__
+for i, node in enumerate(response.source_nodes):
+    print(f"Node {i+1} Text:\n", node.text)
+
+# %%
+query = query_3
+response = sqlauto_engine.query(query)
+print(response)
+
+# %%
+for i, node in enumerate(response.source_nodes):
+    print(f"Node {i+1} Text:\n", node.text)
 
 # %% [markdown]
 ### Using ReActAgent
@@ -223,17 +257,30 @@ react_agent = ReActAgent.from_tools(
 )            
 
 # %%
-query = query_1
+query = query_3
 response = react_agent.chat(query)
+
+# %%
 print(response)
 
 # %%
-response = react_agent.chat("Yes")
-print(response)
+response.source_nodes[0]
 
 # %%
-if "sql_query" in response.sources[0].raw_output.metadata:
-    print(response.sources[0].raw_output.metadata["sql_query"])
+for i, node in enumerate(response.source_nodes):
+    if i != 0:
+        print('\n')
+    print(node.metadata[new_col])
+    print(f"Node {i+1} Text:\n", node.text)
+
+# # %%
+# response = react_agent.chat("Yes")
+# print(response)
+
+# %%
+if len(response.sources) > 0:
+    if "sql_query" in response.sources[0].raw_output.metadata:
+        print(response.sources[0].raw_output.metadata["sql_query"])
 
 # %%
 response.source_nodes
