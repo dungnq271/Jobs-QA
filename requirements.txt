@@ -3,28 +3,28 @@ streamlit
 streamlit_chat
 
 langchain
-langchain - openai
-langchain - pinecone
-langchain - community
+langchain-openai
+langchain-pinecone
+langchain-community
 langchainhub
 
 chromadb
 qdrant_client
 
-llama - index
-llama - parse
-llama - index - vector - stores - astra
-llama - index - vector - stores - qdrant
-llama - index - agent - openai - legacy
-llama - index - llms - anthropic
-llama - index - readers - file
+llama-index
+llama-parse
+llama-index-vector-stores-astra
+llama-index-vector-stores-qdrant
+llama-index-agent-openai-legacy
+llama-index-llms-anthropic
+llama-index-readers-file
 
-llama - index - packs - query - understanding - agent
-llama - index - llms - langchain
+llama-index-packs-query-understanding-agent
+llama-index-llms-langchain
 
 fastapi
 uvicorn
-python - dotenv
+python-dotenv
 
 ipykernel
 # paddlepaddle
