@@ -14,7 +14,9 @@ img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
 plt.imshow(img)
 
 # %%
-ocr = PaddleOCR(lang='en') # need to run only once to download and load model into memory
+ocr = PaddleOCR(
+    lang="en"
+)  # need to run only once to download and load model into memory
 
 # %%
 results = ocr.ocr(img_path, cls=False)
@@ -32,7 +34,7 @@ for elem in elements:
     print("\n")
 
 # %%
-extracted_text = '\n'.join([elem.text for elem in elements])
+extracted_text = "\n".join([elem.text for elem in elements])
 print(extracted_text)
 
 # %%

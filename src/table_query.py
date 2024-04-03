@@ -12,7 +12,7 @@ from llama_index.core import (
     Settings,
     VectorStoreIndex,
     StorageContext,
-    SQLDatabase
+    SQLDatabase,
 )
 from llama_index.core.schema import TextNode
 from llama_index.vector_stores.qdrant import QdrantVectorStore
@@ -23,7 +23,7 @@ from llama_index.core.vector_stores import MetadataInfo, VectorStoreInfo
 from llama_index.core.query_engine import (
     RetrieverQueryEngine,
     NLSQLTableQueryEngine,
-    SQLAutoVectorQueryEngine
+    SQLAutoVectorQueryEngine,
 )
 from llama_index.core.tools import QueryEngineTool
 
@@ -73,7 +73,7 @@ class Agent:
     tools = []
     # Tạo object kết nối với database
     engine = create_engine("sqlite:///:memory:", future=True)
-    
+
     def __init__(
         self,
         node_parser=None,
@@ -97,7 +97,9 @@ class Agent:
         self.query_chat_engine = self._get_query_engine()
 
     @staticmethod
-    def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+    def add_df_to_sql_database(
+        table_name: str, pandas_df: pd.DataFrame, engine: Engine
+    ) -> None:
         """Thêm pandas DataFrame vào SQL Engine"""
         pandas_df.to_sql(table_name, engine)
 
@@ -113,9 +115,15 @@ class Agent:
             # api_key="<qdrant-api-key>",
         )
 
-        vector_store = QdrantVectorStore(client=client, collection_name="jobs_posted")
-        storage_context = StorageContext.from_defaults(vector_store=vector_store)
-        self.vector_index = VectorStoreIndex([], storage_context=storage_context)        
+        vector_store = QdrantVectorStore(
+            client=client, collection_name="jobs_posted"
+        )
+        storage_context = StorageContext.from_defaults(
+            vector_store=vector_store
+        )
+        self.vector_index = VectorStoreIndex(
+            [], storage_context=storage_context
+        )
 
     @calculate_time
     def add_tool_for_file(self, filepath):
@@ -127,9 +135,10 @@ class Agent:
 
         if suff in [".txt", ".pdf", ".pptx"]:
             documents = SimpleDirectoryReader(
-                input_files=[filepath], file_extractor={
+                input_files=[filepath],
+                file_extractor={
                     suff: self.parser for suff in [".pdf", ".pptx"]
-                }
+                },
             ).load_data()
         if suff == ".csv":
             toolname, description, table_name = self._get_meta_table(filepath)
@@ -137,12 +146,16 @@ class Agent:
         else:
             raise NotImplementedError
 
-        self._parse_document(documents, self.node_parser)  # Add document vào index
+        self._parse_document(
+            documents, self.node_parser
+        )  # Add document vào index
         self.query_chat_engine = self._get_query_engine()
-            
+
     def _parse_document(self, documents, node_parser):
         if not hasattr(self, "index"):  # khởi tạo index lần đầu
-            if self.mode == "advanced":  # Recursive Retriever sẽ cho kết quả tốt hơn
+            if (
+                self.mode == "advanced"
+            ):  # Recursive Retriever sẽ cho kết quả tốt hơn
                 nodes = node_parser.get_nodes_from_documents(documents)
                 base_nodes, objects = self.node_parser.get_nodes_and_objects(
                     nodes
@@ -170,8 +183,7 @@ class Agent:
             node_postprocessors=[self.reranker],
             verbose=verbose,
         )
-        return \
-        CondenseQuestionChatEngine.from_defaults(
+        return CondenseQuestionChatEngine.from_defaults(
             query_engine=query_engine,
             condense_question_prompt=custom_prompt,
             chat_history=[],

@@ -12,7 +12,7 @@ from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
     StorageContext,
-    load_index_from_storage
+    load_index_from_storage,
 )
 from llama_index.core.node_parser import MarkdownElementNodeParser
 
@@ -68,9 +68,13 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.engine.base import Engine
 from llama_index.core.schema import TextNode
 
+
 # %%
-def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+def add_df_to_sql_database(
+    table_name: str, pandas_df: pd.DataFrame, engine: Engine
+) -> None:
     pandas_df.to_sql(table_name, engine)
+
 
 engine = create_engine("sqlite:///:memory:", future=True)
 
@@ -114,9 +118,7 @@ else:
         persist_dir=f"{table_index_dir}/{table_name}"
     )
     # load index
-    index = load_index_from_storage(
-        storage_context, index_id="vector_index"
-    )
+    index = load_index_from_storage(storage_context, index_id="vector_index")
 
 # %%
 query_engine = index.as_query_engine()
@@ -139,4 +141,3 @@ print(srcn)
 
 # %%
 print(srcn[-1])
-

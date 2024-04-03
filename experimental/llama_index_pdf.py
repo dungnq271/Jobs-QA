@@ -12,7 +12,7 @@ from llama_index.core import (
     VectorStoreIndex,
     SimpleDirectoryReader,
     StorageContext,
-    load_index_from_storage
+    load_index_from_storage,
 )
 from llama_index.core.node_parser import MarkdownElementNodeParser
 
@@ -40,7 +40,7 @@ if not osp.exists(PERSIST_DIR):
     # load the documents and create the index
     documents = SimpleDirectoryReader(
         input_files=["../documents/uber_10q_march_2022.pdf"],
-        file_extractor={".pdf": parser}
+        file_extractor={".pdf": parser},
     ).load_data()
     index = VectorStoreIndex.from_documents(documents)
     # store it for later
@@ -52,18 +52,20 @@ else:
 
 query_engine = index.as_query_engine()
 
+
 # %%
 def display_image(path):
     plt.figure(figsize=(20, 40))
-    plt.imshow(Image.open(path))    
+    plt.imshow(Image.open(path))
     plt.show()
+
 
 # %%
 queries = [
     "how is the Cash paid for Income taxes, net of refunds from Supplemental disclosures of cash flow information?",
     "what is the change of free cash flow and what is the rate from the financial and operational highlights?",
     "what is the net loss value attributable to Uber compared to last year?",
-    "What were cash flows like from investing activities?"
+    "What were cash flows like from investing activities?",
 ]
 
 # %%
@@ -83,6 +85,7 @@ tru.reset_database()
 ### Initialize Feedback Function(s)
 import numpy as np
 from trulens_eval.feedback.provider.openai import OpenAI
+
 openai = OpenAI()
 
 from trulens_eval.app import App
@@ -94,13 +97,12 @@ from trulens_eval import TruLlama
 def get_prebuilt_trulens_recorder(query_engine, app_id):
     openai = OpenAI()
 
-    qa_relevance = (
-        Feedback(openai.relevance_with_cot_reasons, name="Answer Relevance")
-        .on_input_output()
-    )
+    qa_relevance = Feedback(
+        openai.relevance_with_cot_reasons, name="Answer Relevance"
+    ).on_input_output()
 
     qs_relevance = (
-        Feedback(openai.relevance_with_cot_reasons, name = "Context Relevance")
+        Feedback(openai.relevance_with_cot_reasons, name="Context Relevance")
         .on_input()
         .on(TruLlama.select_source_nodes().node.text)
         .aggregate(np.mean)
@@ -109,32 +111,31 @@ def get_prebuilt_trulens_recorder(query_engine, app_id):
     grounded = Groundedness(groundedness_provider=openai)
 
     groundedness = (
-        Feedback(grounded.groundedness_measure_with_cot_reasons, name="Groundedness")
-            .on(TruLlama.select_source_nodes().node.text)
-            .on_output()
-            .aggregate(grounded.grounded_statements_aggregator)
+        Feedback(
+            grounded.groundedness_measure_with_cot_reasons, name="Groundedness"
+        )
+        .on(TruLlama.select_source_nodes().node.text)
+        .on_output()
+        .aggregate(grounded.grounded_statements_aggregator)
     )
 
     feedbacks = [qa_relevance, qs_relevance, groundedness]
-    tru_recorder = TruLlama(
-        query_engine,
-        app_id=app_id,
-        feedbacks=feedbacks
-    )
+    tru_recorder = TruLlama(query_engine, app_id=app_id, feedbacks=feedbacks)
 
     return tru_recorder
+
 
 def run_evals(eval_questions, tru_recorder, query_engine):
     for question in eval_questions:
         with tru_recorder as recording:
             response = query_engine.query(question)
 
-# %%            
+
+# %%
 tru_recorder_1 = get_prebuilt_trulens_recorder(
-    query_engine,
-    app_id='LlamaIndex_App1'
+    query_engine, app_id="LlamaIndex_App1"
 )
-run_evals(queries, tru_recorder_1, query_engine)        
+run_evals(queries, tru_recorder_1, query_engine)
 Tru().run_dashboard()
 
 # %%
@@ -149,7 +150,7 @@ PERSIST_DIR = "../storage_2"
 if not osp.exists(PERSIST_DIR):
     documents = SimpleDirectoryReader(
         input_files=["../documents/uber_10q_march_2022.pdf"],
-        file_extractor={".pdf": parser}
+        file_extractor={".pdf": parser},
     ).load_data()
 
     # index = VectorStoreIndex.from_documents(documents)
@@ -178,10 +179,9 @@ query_engine = index.as_query_engine(
 
 # %%
 tru_recorder_2 = get_prebuilt_trulens_recorder(
-    query_engine,
-    app_id='LlamaIndex_App2'
+    query_engine, app_id="LlamaIndex_App2"
 )
-run_evals(queries, tru_recorder_2, query_engine)        
+run_evals(queries, tru_recorder_2, query_engine)
 Tru().run_dashboard()
 
 # %%

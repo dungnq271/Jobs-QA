@@ -13,9 +13,13 @@ from llama_index.core.tools import QueryEngineTool, ToolMetadata
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 
+
 # %%
-def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+def add_df_to_sql_database(
+    table_name: str, pandas_df: pd.DataFrame, engine: Engine
+) -> None:
     pandas_df.to_sql(table_name, engine)
+
 
 engine = create_engine("sqlite:///:memory:", future=True)
 
@@ -31,7 +35,7 @@ add_df_to_sql_database(table_name, df, engine)
 # %%
 model = "gpt-3.5-turbo"
 llm = OpenAI(model=model)
-query_engine=NLSQLTableQueryEngine(
+query_engine = NLSQLTableQueryEngine(
     sql_database=SQLDatabase(engine), tables=[table_name], llm=llm
 )
 

@@ -18,7 +18,10 @@ from llama_index.core import (
 )
 from llama_parse import LlamaParse
 from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.core.node_parser import MarkdownElementNodeParser, UnstructuredElementNodeParser
+from llama_index.core.node_parser import (
+    MarkdownElementNodeParser,
+    UnstructuredElementNodeParser,
+)
 from llama_index.core import SQLDatabase
 from llama_index.core.postprocessor import SimilarityPostprocessor
 
@@ -34,6 +37,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import pandas as pd
 from astrapy.db import AstraDB
+
 # from unstructured.partition.image import partition_image
 # from paddleocr import PaddleOCR
 
@@ -87,7 +91,7 @@ class Agent:
     engine = create_engine("sqlite:///:memory:", future=True)
     text_filenames = []
     bootstrap_tool_name = "bootstrap"
-    
+
     def __init__(
         self,
         node_parser=None,
@@ -143,10 +147,12 @@ class Agent:
             Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
             If there is no information please answer you don't have that information.
             """,
-        )            
+        )
 
     @staticmethod
-    def add_df_to_sql_database(table_name: str, pandas_df: pd.DataFrame, engine: Engine) -> None:
+    def add_df_to_sql_database(
+        table_name: str, pandas_df: pd.DataFrame, engine: Engine
+    ) -> None:
         pandas_df.to_sql(table_name, engine)
 
     @calculate_time
@@ -167,9 +173,10 @@ class Agent:
             #     document = [Document(text=extracted_text)]
             if suff in [".pdf", ".pptx"]:
                 document = SimpleDirectoryReader(
-                    input_files=[filepath], file_extractor={
+                    input_files=[filepath],
+                    file_extractor={
                         suff: self.parser for suff in [".pdf", ".pptx"]
-                    }
+                    },
                 ).load_data()
             else:
                 raise NotImplementedError
@@ -219,7 +226,9 @@ class Agent:
     def _add_sql_engine(self, table_name):
         sql_tool = QueryEngineTool(
             query_engine=NLSQLTableQueryEngine(
-                sql_database=SQLDatabase(self.engine), tables=[table_name], llm=llm
+                sql_database=SQLDatabase(self.engine),
+                tables=[table_name],
+                llm=llm,
             ),
             metadata=ToolMetadata(
                 name=f"sql_{table_name}",
@@ -238,10 +247,10 @@ class Agent:
             desc = filename
 
         # each word in desc is separated by space character
-        if '-' in desc:
-            desc = ' '.join(desc.split('-'))
+        if "-" in desc:
+            desc = " ".join(desc.split("-"))
 
-        toolname = '_'.join(["query"] + desc.split())
+        toolname = "_".join(["query"] + desc.split())
 
         self.query_engine = self.index.as_query_engine(
             similarity_top_k=15,
@@ -274,7 +283,11 @@ class Agent:
                 response = self.agent.chat(prompt)
                 if verbose:
                     if "sql_query" in response.sources[0].raw_output.metadata:
-                        print(response.sources[0].raw_output.metadata["sql_query"])
+                        print(
+                            response.sources[0].raw_output.metadata[
+                                "sql_query"
+                            ]
+                        )
                 response = response.response
 
             except Exception as e:
@@ -315,7 +328,7 @@ async def lifespan(app: FastAPI):
         reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
     )
     yield
-    # Clean up the data resources    
+    # Clean up the data resources
     if post_delete_index:
         delete_table()
 

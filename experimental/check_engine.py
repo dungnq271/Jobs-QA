@@ -28,9 +28,7 @@ vstore = AstraDBVectorStore(
     collection_name=collection_name,
     embedding_dimension=1536,
 )
-storage_context = StorageContext.from_defaults(
-    vector_store=vstore
-)
+storage_context = StorageContext.from_defaults(vector_store=vstore)
 index = VectorStoreIndex.from_vector_store(
     vstore, storage_context=storage_context
 )
@@ -47,8 +45,7 @@ query_tool = QueryEngineTool(
     metadata=ToolMetadata(
         name=bootstrap_tool_name,
         description=(
-            "Useful for querying for information"
-            f"about text documents"
+            "Useful for querying for information" f"about text documents"
         ),
     ),
 )
@@ -57,4 +54,3 @@ query_tool = QueryEngineTool(
 query_tool.metadata.name
 
 # %%
-

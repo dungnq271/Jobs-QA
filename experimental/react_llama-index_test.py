@@ -1,5 +1,6 @@
 # %%
 import sys
+
 sys.path.append("../agent_api.py")
 
 from agent_api import *
@@ -16,7 +17,11 @@ agent = Agent(
 )
 
 # %%
-filepaths = ["../documents/all_teams.csv", "../documents/allPlayersLookup.csv", "../documents/uber_10q_march_2022.pdf"]
+filepaths = [
+    "../documents/all_teams.csv",
+    "../documents/allPlayersLookup.csv",
+    "../documents/uber_10q_march_2022.pdf",
+]
 for path in filepaths:
     agent.parse_file(path)
 
@@ -27,6 +32,8 @@ agent.chat("Who is the oldest player?")
 agent.chat("Which team has the most points?")
 
 # %%
-agent.chat("what is the net loss value attributable to Uber compared to last year?")
+agent.chat(
+    "what is the net loss value attributable to Uber compared to last year?"
+)
 
 # %%
