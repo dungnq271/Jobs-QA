@@ -42,9 +42,6 @@ from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
 import pandas as pd
 
-# from unstructured.partition.image import partition_image
-# from paddleocr import PaddleOCR
-
 from utils import calculate_time, delete_astradb
 from misc import *
 from icecream import ic
@@ -58,14 +55,14 @@ table_name = "rag_demo"
 # agent_mode = "react-basic"
 agent_mode = "react-query-understanding"
 rag_mode = "advanced"
-# model = "gpt-3.5-turbo"
-model = "claude-3-haiku-20240307"
+model = "gpt-3.5-turbo"
+# model = "claude-3-haiku-20240307"
 file_desc = False
 post_delete_index = False
 verbose = True
 
 
-#### Main app ####
+#### Settings ####
 _ = load_dotenv(find_dotenv())  # read local .env file
 os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
 os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
@@ -73,13 +70,11 @@ os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
 embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
     # model="text-embedding-ada-002",
-    # model="text-embedding-3-large",
     timeout=60,
     max_tries=3,
 )
 
-# reader = FlatReader()
-# ocr = PaddleOCR(lang='en')
+
 if "gpt" in model:
     llm = OpenAI(model=model)
 elif "claude" in model:
@@ -124,13 +119,6 @@ class Agent:
         self._load_index()
         _, self.query_chat_engine = self._get_query_engine()
 
-    @staticmethod
-    def add_df_to_sql_database(
-        table_name: str, pandas_df: pd.DataFrame, engine: Engine
-    ) -> None:
-        """Thêm pandas DataFrame vào SQL Engine"""
-        pandas_df.to_sql(table_name, engine)
-
     def get_agent(self):
         if agent_mode == "react-basic":
             callback_manager = llm.callback_manager
@@ -159,22 +147,6 @@ class Agent:
             raise NotImplementedError
 
     def _load_index(self):
-        # Load vector database, có thể thay đổi thành các loại vectordb trong llamaindex
-        # ở đây đang dùng astradb
-        # self.vector_store = AstraDBVectorStore(
-        #     token=os.getenv("ASTRA_TOKEN"),
-        #     api_endpoint=os.getenv("ASTRA_API_ENDPOINT"),
-        #     namespace=os.getenv("ASTRA_NAMESPACE"),
-        #     collection_name=self.collection_name,
-        #     embedding_dimension=1536,
-        # )
-        # self.storage_context = StorageContext.from_defaults(
-        #     vector_store=self.vector_store
-        # )
-        # self.index = VectorStoreIndex.from_vector_store(
-        #     self.vector_store, storage_context=self.storage_context
-        # )
-
         client = qdrant_client.QdrantClient(location=":memory:")
         self.vector_store = QdrantVectorStore(
             client=client, collection_name=table_name
@@ -196,13 +168,6 @@ class Agent:
             toolname, description, table_name = self._get_meta_table(filepath)
             engine = self._get_sql_engine(table_name)
         else:
-            # if suff in [".jpg", ".png"]:
-            #     elements = ocr.ocr(filepath, cls=False)
-            #     extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
-            #     if verbose:
-            #         print(extracted_text)
-            #     document = [Document(text=extracted_text)]
-
             if suff in [".txt", ".pdf", ".pptx"]:
                 document = SimpleDirectoryReader(
                     input_files=[filepath],
@@ -248,41 +213,6 @@ class Agent:
                 self.index.insert(
                     document=doc, storage_context=self.storage_context
                 )
-
-    def _get_meta_table(self, filepath):
-        filename = osp.basename(filepath)
-        table_name = osp.splitext(filename)[0]
-        df = pd.read_csv(filepath)
-        self.add_df_to_sql_database(table_name, df, self.engine)
-        toolname = f"sql_{table_name}"
-
-        if file_desc:
-            fdesc = file_description[table_name]
-        else:
-            fdesc = table_name
-
-        description = query_sql_description.format(file_description=fdesc)
-        return toolname, description, table_name
-
-    def _get_meta_doc(self, filepath):
-        filename = osp.basename(filepath)
-        filename = osp.splitext(filename)[0]
-
-        if file_desc:
-            fdesc = file_description[filename]
-        else:
-            fdesc = filename
-
-        # mỗi từ trong mô tả được ngăn cách bằng ' '
-        if "-" in fdesc:
-            fdesc = " ".join(fdesc.split("-"))
-        description = query_text_description.format(file_description=fdesc)
-
-        # tên của tool là 'query' cùng với các từ trong
-        # tên file được ngăn cách bằng '_'
-        toolname = "_".join(["query"] + fdesc.split())
-
-        return toolname, description
 
     def _get_sql_engine(self, table_name):
         return NLSQLTableQueryEngine(
