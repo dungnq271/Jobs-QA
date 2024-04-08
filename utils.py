@@ -7,9 +7,12 @@ from langchain.chains import LLMChain
 from langchain_openai import OpenAI, OpenAIEmbeddings
 from langchain.prompts import PromptTemplate
 
+from llama_index.core.response.notebook_utils import display_source_node
+
 import streamlit as st
 from dotenv import load_dotenv, find_dotenv
 from astrapy.db import AstraDB
+from sqlalchemy import create_engine, text
 
 
 _ = load_dotenv(find_dotenv())  # read local .env file
@@ -89,3 +92,28 @@ def delete_astradb():
     )
     db.delete_collection(collection_name=table_name)
     print("----------------------APP EXITED----------------------")
+
+
+def debug_qa(query, response, engine):
+    print("\n***********Query***********")
+    print(query)
+    print("\n***********Response***********")
+    print(response)
+
+    print("\n***********Source Nodes***********")
+    for node in response.source_nodes:
+        # display_source_node(node, source_length=2000)
+        print(node.text)
+
+    if len(response.metadata) > 0:
+        print("\n***********SQL Query***********")
+        if "sql_query" in response.metadata:
+            sql_query = response.metadata["sql_query"]
+            print("Command:", sql_query)
+            try:
+                with engine.connect() as conn:
+                    cursor = conn.execute(text(sql_query))
+                    result = cursor.fetchall()
+                print("Result:", result)
+            except:
+                print("SQL Command invalid!")
