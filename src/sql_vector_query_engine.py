@@ -6,7 +6,9 @@ from typing import Any, Callable, Dict, Optional, Union
 from llama_index.core.base.base_query_engine import BaseQueryEngine
 from llama_index.core.base.response.schema import RESPONSE_TYPE, Response
 from llama_index.core.callbacks.base import CallbackManager
-from llama_index.core.indices.query.query_transform.base import BaseQueryTransform
+from llama_index.core.indices.query.query_transform.base import (
+    BaseQueryTransform,
+)
 from llama_index.core.indices.struct_store.sql_query import (
     BaseSQLTableQueryEngine,
     NLSQLTableQueryEngine,
@@ -16,7 +18,9 @@ from llama_index.core.prompts.base import BasePromptTemplate, PromptTemplate
 from llama_index.core.prompts.mixin import PromptDictType, PromptMixinType
 from llama_index.core.schema import QueryBundle
 from llama_index.core.selectors.llm_selectors import LLMSingleSelector
-from llama_index.core.selectors.pydantic_selectors import PydanticSingleSelector
+from llama_index.core.selectors.pydantic_selectors import (
+    PydanticSingleSelector,
+)
 from llama_index.core.selectors.utils import get_selector_from_llm
 from llama_index.core.service_context import ServiceContext
 from llama_index.core.service_context_elements.llm_predictor import (
@@ -130,18 +134,23 @@ class SQLAugmentQueryTransform(BaseQueryTransform):
         self._llm = llm or Settings.llm
 
         self._sql_augment_transform_prompt = (
-            sql_augment_transform_prompt or DEFAULT_SQL_AUGMENT_TRANSFORM_PROMPT
+            sql_augment_transform_prompt
+            or DEFAULT_SQL_AUGMENT_TRANSFORM_PROMPT
         )
         self._check_stop_parser = check_stop_parser or _default_check_stop
 
     def _get_prompts(self) -> PromptDictType:
         """Get prompts."""
-        return {"sql_augment_transform_prompt": self._sql_augment_transform_prompt}
+        return {
+            "sql_augment_transform_prompt": self._sql_augment_transform_prompt
+        }
 
     def _update_prompts(self, prompts: PromptDictType) -> None:
         """Update prompts."""
         if "sql_augment_transform_prompt" in prompts:
-            self._sql_augment_transform_prompt = prompts["sql_augment_transform_prompt"]
+            self._sql_augment_transform_prompt = prompts[
+                "sql_augment_transform_prompt"
+            ]
 
     def _run(self, query_bundle: QueryBundle, metadata: Dict) -> QueryBundle:
         """Run query transform."""
@@ -155,7 +164,8 @@ class SQLAugmentQueryTransform(BaseQueryTransform):
             sql_response_str=sql_query_response,
         )
         return QueryBundle(
-            new_query_str, custom_embedding_strs=query_bundle.custom_embedding_strs
+            new_query_str,
+            custom_embedding_strs=query_bundle.custom_embedding_strs,
         )
 
     def check_stop(self, query_bundle: QueryBundle) -> bool:
@@ -192,7 +202,9 @@ class SQLJoinQueryEngine(BaseQueryEngine):
         self,
         sql_query_tool: QueryEngineTool,
         other_query_tool: QueryEngineTool,
-        selector: Optional[Union[LLMSingleSelector, PydanticSingleSelector]] = None,
+        selector: Optional[
+            Union[LLMSingleSelector, PydanticSingleSelector]
+        ] = None,
         llm: Optional[LLMPredictorType] = None,
         sql_join_synthesis_prompt: Optional[BasePromptTemplate] = None,
         sql_augment_query_transform: Optional[SQLAugmentQueryTransform] = None,
@@ -216,16 +228,23 @@ class SQLJoinQueryEngine(BaseQueryEngine):
         self._sql_query_tool = sql_query_tool
         self._other_query_tool = other_query_tool
 
-        self._llm = llm or llm_from_settings_or_context(Settings, service_context)
+        self._llm = llm or llm_from_settings_or_context(
+            Settings, service_context
+        )
 
-        self._selector = selector or get_selector_from_llm(self._llm, is_multi=False)
-        assert isinstance(self._selector, (LLMSingleSelector, PydanticSingleSelector))
+        self._selector = selector or get_selector_from_llm(
+            self._llm, is_multi=False
+        )
+        assert isinstance(
+            self._selector, (LLMSingleSelector, PydanticSingleSelector)
+        )
 
         self._sql_join_synthesis_prompt = (
             sql_join_synthesis_prompt or DEFAULT_SQL_JOIN_SYNTHESIS_PROMPT
         )
         self._sql_augment_query_transform = (
-            sql_augment_query_transform or SQLAugmentQueryTransform(llm=self._llm)
+            sql_augment_query_transform
+            or SQLAugmentQueryTransform(llm=self._llm)
         )
         self._use_sql_join_synthesis = use_sql_join_synthesis
         self._verbose = verbose
@@ -244,7 +263,9 @@ class SQLJoinQueryEngine(BaseQueryEngine):
     def _update_prompts(self, prompts: PromptDictType) -> None:
         """Update prompts."""
         if "sql_join_synthesis_prompt" in prompts:
-            self._sql_join_synthesis_prompt = prompts["sql_join_synthesis_prompt"]
+            self._sql_join_synthesis_prompt = prompts[
+                "sql_join_synthesis_prompt"
+            ]
 
     def _query_sql_other(self, query_bundle: QueryBundle) -> RESPONSE_TYPE:
         """Query SQL database + other query engine in sequence."""
@@ -254,7 +275,9 @@ class SQLJoinQueryEngine(BaseQueryEngine):
             return sql_response
 
         sql_query = (
-            sql_response.metadata["sql_query"] if sql_response.metadata else None
+            sql_response.metadata["sql_query"]
+            if sql_response.metadata
+            else None
         )
         if self._verbose:
             print_text(f"SQL query: {sql_query}\n", color="yellow")
@@ -274,13 +297,17 @@ class SQLJoinQueryEngine(BaseQueryEngine):
                 f"Transformed query given SQL response: {new_query.query_str}\n",
                 color="blue",
             )
-        logger.info(f"> Transformed query given SQL response: {new_query.query_str}")
+        logger.info(
+            f"> Transformed query given SQL response: {new_query.query_str}"
+        )
         if self._sql_augment_query_transform.check_stop(new_query):
             return sql_response
 
         other_response = self._other_query_tool.query_engine.query(new_query)
         if self._verbose:
-            print_text(f"query engine response: {other_response}\n", color="pink")
+            print_text(
+                f"query engine response: {other_response}\n", color="pink"
+            )
         logger.info(f"> query engine response: {other_response}")
 
         response_str = self._llm.predict(
@@ -307,23 +334,31 @@ class SQLJoinQueryEngine(BaseQueryEngine):
     def _query(self, query_bundle: QueryBundle) -> RESPONSE_TYPE:
         """Query and get response."""
         # TODO: see if this can be consolidated with logic in RouterQueryEngine
-        metadatas = [self._sql_query_tool.metadata, self._other_query_tool.metadata]
+        metadatas = [
+            self._sql_query_tool.metadata,
+            self._other_query_tool.metadata,
+        ]
         result = self._selector.select(metadatas, query_bundle)
         # pick sql query
         if result.ind == 0:
             if self._verbose:
-                print_text(f"Querying SQL database: {result.reason}\n", color="blue")
+                print_text(
+                    f"Querying SQL database: {result.reason}\n", color="blue"
+                )
             logger.info(f"> Querying SQL database: {result.reason}")
             return self._query_sql_other(query_bundle)
         elif result.ind == 1:
             if self._verbose:
                 print_text(
-                    f"Querying other query engine: {result.reason}\n", color="blue"
+                    f"Querying other query engine: {result.reason}\n",
+                    color="blue",
                 )
             logger.info(f"> Querying other query engine: {result.reason}")
             response = self._other_query_tool.query_engine.query(query_bundle)
             if self._verbose:
-                print_text(f"Query Engine response: {response}\n", color="pink")
+                print_text(
+                    f"Query Engine response: {response}\n", color="pink"
+                )
             return response
         else:
             raise ValueError(f"Invalid result.ind: {result.ind}")
@@ -331,7 +366,6 @@ class SQLJoinQueryEngine(BaseQueryEngine):
     async def _aquery(self, query_bundle: QueryBundle) -> RESPONSE_TYPE:
         # TODO: make async
         return self._query(query_bundle)
-
 
 
 DEFAULT_SQL_VECTOR_SYNTHESIS_PROMPT_TMPL = """
@@ -386,7 +420,9 @@ class SQLAutoVectorQueryEngine(SQLJoinQueryEngine):
         self,
         sql_query_tool: QueryEngineTool,
         vector_query_tool: QueryEngineTool,
-        selector: Optional[Union[LLMSingleSelector, PydanticSingleSelector]] = None,
+        selector: Optional[
+            Union[LLMSingleSelector, PydanticSingleSelector]
+        ] = None,
         llm: Optional[LLM] = None,
         service_context: Optional[ServiceContext] = None,
         sql_vector_synthesis_prompt: Optional[BasePromptTemplate] = None,
@@ -405,7 +441,9 @@ class SQLAutoVectorQueryEngine(SQLJoinQueryEngine):
                 "sql_query_tool.query_engine must be an instance of "
                 "BaseSQLTableQueryEngine or NLSQLTableQueryEngine"
             )
-        if not isinstance(vector_query_tool.query_engine, RetrieverQueryEngine):
+        if not isinstance(
+            vector_query_tool.query_engine, RetrieverQueryEngine
+        ):
             raise ValueError(
                 "vector_query_tool.query_engine must be an instance of "
                 "RetrieverQueryEngine"
@@ -448,18 +486,24 @@ class SQLAutoVectorQueryEngine(SQLJoinQueryEngine):
     def _update_prompts(self, prompts: PromptDictType) -> None:
         """Update prompts."""
         if "sql_join_synthesis_prompt" in prompts:
-            self._sql_join_synthesis_prompt = prompts["sql_join_synthesis_prompt"]
+            self._sql_join_synthesis_prompt = prompts[
+                "sql_join_synthesis_prompt"
+            ]
 
     @classmethod
     def from_sql_and_vector_query_engines(
         cls,
-        sql_query_engine: Union[BaseSQLTableQueryEngine, NLSQLTableQueryEngine],
+        sql_query_engine: Union[
+            BaseSQLTableQueryEngine, NLSQLTableQueryEngine
+        ],
         sql_tool_name: str,
         sql_tool_description: str,
         vector_auto_retriever: RetrieverQueryEngine,
         vector_tool_name: str,
         vector_tool_description: str,
-        selector: Optional[Union[LLMSingleSelector, PydanticSingleSelector]] = None,
+        selector: Optional[
+            Union[LLMSingleSelector, PydanticSingleSelector]
+        ] = None,
         **kwargs: Any,
     ) -> "SQLAutoVectorQueryEngine":
         """From SQL and vector query engines.
@@ -472,7 +516,9 @@ class SQLAutoVectorQueryEngine(SQLJoinQueryEngine):
 
         """
         sql_query_tool = QueryEngineTool.from_defaults(
-            sql_query_engine, name=sql_tool_name, description=sql_tool_description
+            sql_query_engine,
+            name=sql_tool_name,
+            description=sql_tool_description,
         )
         vector_query_tool = QueryEngineTool.from_defaults(
             vector_auto_retriever,
