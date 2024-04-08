@@ -40,7 +40,7 @@ Useful for answering semantic questions about {file_description}
 
 query_sql_description = """
 Useful for translating a natural language query 
-into an SQL query over table {description}
+into an SQL query over table having columns: {columns_list}
 """
 
 
