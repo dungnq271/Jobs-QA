@@ -89,7 +89,7 @@ if prompt := st.chat_input("What is up?"):
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        response = get_response(prompt)
+        response = get_response(prompt)["response"]
         response = st.write_stream(response_generator(response))
 
     # Add assistant response to chat history
