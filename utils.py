@@ -1,42 +1,15 @@
 import os
-import requests
 import time
 
-from pinecone import Pinecone
-from langchain.chains import LLMChain
-from langchain_openai import OpenAI, OpenAIEmbeddings
-from langchain.prompts import PromptTemplate
-
-from llama_index.core.response.notebook_utils import display_source_node
-
-import streamlit as st
-from dotenv import load_dotenv, find_dotenv
+import requests  # type: ignore
 from astrapy.db import AstraDB
-from sqlalchemy import create_engine, text
-
-
-_ = load_dotenv(find_dotenv())  # read local .env file
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-
-llm = OpenAI(temperature=0, openai_api_key=os.getenv("OPENAI_API_KEY"))
-
-
-template = """
-Given the following user query and conversation log, formulate a question that would be the most relevant to provide the user with an answer from a knowledge base. Keep the user query the same if unnecessary.\n\nCONVERSATION LOG: \n{conversation}\n\nQuery: {query}\n\nRefined Query:
-"""
-prompt = PromptTemplate.from_template(template)
-llm_chain = LLMChain(prompt=prompt, llm=llm)
+from sqlalchemy import text
 
 
 def save_file(filebytes, filepath):
     with open(filepath, "wb") as f:
         f.write(filebytes)
     f.close()
-
-
-def get_embedding(text):
-    text = text.replace("\n", " ")
-    return embeddings.embed_query(text)
 
 
 def calculate_time(func):
@@ -57,7 +30,13 @@ def get_response(input):
     )
     assert response.status_code == 200, response.status_code
     json_response = response.json()
-    return json_response
+    if isinstance(json_response, dict):
+        response = json_response["response"]
+    elif isinstance(json_response, str):
+        response = json_response
+    else:
+        raise TypeError("Response must be of type str or Dict")
+    return response
 
 
 def response_generator(response):
@@ -66,24 +45,7 @@ def response_generator(response):
         time.sleep(0.05)
 
 
-def query_refiner(conversation, query):
-    return llm_chain.invoke({"conversation": conversation, "query": query})
-
-
-def get_conversation_string():
-    conversation_string = ""
-    for i in range(len(st.session_state["responses"]) - 1):
-
-        conversation_string += (
-            "Human: " + st.session_state["requests"][i] + "\n"
-        )
-        conversation_string += (
-            "Bot: " + st.session_state["responses"][i + 1] + "\n"
-        )
-    return conversation_string
-
-
-def delete_astradb():
+def delete_astradb(table_name):
     # Drop the table created for this session
     db = AstraDB(
         token=os.getenv("ASTRA_TOKEN"),
@@ -115,5 +77,14 @@ def debug_qa(query, response, engine):
                     cursor = conn.execute(text(sql_query))
                     result = cursor.fetchall()
                 print("Result:", result)
-            except:
+            except RuntimeError:
                 print("SQL Command invalid!")
+
+
+def modify_days_to_3digits(day=str):
+    words = day.split()
+    try:
+        nday = int(words[0])
+        return " ".join([f"{nday:03}"] + words[1:])
+    except TypeError:
+        return "9999"
