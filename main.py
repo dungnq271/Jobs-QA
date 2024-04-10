@@ -1,22 +1,20 @@
+import asyncio
 import os
 import os.path as osp
 
+import requests  # type: ignore
 import streamlit as st
-import asyncio
-import requests
 
-from utils import get_response, save_file, response_generator
+from utils import get_response, response_generator, save_file
 
-
-#### Hyperparams ####
+# Hyperparams
 doc_dir = "./documents"
 refine_query = False
 
 
-#### Main app ####
 title = "Chatbot with LlamaIndex 🦙, ChatGPT, AstraDB, and Streamlit"
 st.markdown(
-    f"<h2 style='text-align: center;'>{title}</h2>", unsafe_allow_html=True
+    "<h2 style='text-align: center;'>" "{title}</h2>", unsafe_allow_html=True
 )
 
 
@@ -36,7 +34,7 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 
-## Upload and parse files
+# Upload and parse files
 if not osp.exists(doc_dir):
     os.makedirs(doc_dir, exist_ok=True)
 
@@ -44,7 +42,7 @@ if not osp.exists(doc_dir):
 with st.sidebar:
     st.header("File Upload Options")
     uploaded_files = st.file_uploader(
-        f"# Upload files",
+        "# Upload files",
         type=["txt", "csv", "pdf", "pptx", "ppt", "jpg", "png"],
         accept_multiple_files=True,
         # label_visibility="hidden"
@@ -89,12 +87,12 @@ if prompt := st.chat_input("What is up?"):
 
     # Display assistant response in chat message container
     with st.chat_message("assistant"):
-        response = get_response(prompt)["response"]
-        response = st.write_stream(response_generator(response))
+        response = get_response(prompt)
+        response_stream = st.write_stream(response_generator(response))
 
     # Add assistant response to chat history
     st.session_state.messages.append(
-        {"role": "assistant", "content": response}
+        {"role": "assistant", "content": response_stream}
     )
 
 
