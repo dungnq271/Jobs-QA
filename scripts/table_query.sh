@@ -1,2 +1,2 @@
 #!/bin/zsh
-uvicorn src.table_query:app --loop asyncio
+uvicorn src.table_factory:app --loop asyncio $1
