@@ -1,6 +1,26 @@
+from llama_index.core import PromptTemplate
+
 from utils import modify_days_to_3digits
 
 # Prompt Template
+custom_prompt = PromptTemplate(
+    """
+Given a conversation (between Human and Assistant)
+and a follow up message from Human,
+rewrite the message to be a standalone question
+that captures all relevant context from the conversation.
+
+<Chat History>
+{chat_history}
+
+<Follow Up Message>
+{question}
+
+<Standalone question>
+"""
+)
+
+
 system_prompt = """
 You are an agent designed to answer queries from user.
 Please ALWAYS use the tools provided to answer a question.
