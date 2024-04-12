@@ -86,5 +86,5 @@ def modify_days_to_3digits(day=str):
     try:
         nday = int(words[0])
         return " ".join([f"{nday:03}"] + words[1:])
-    except TypeError:
+    except ValueError:
         return "9999"
