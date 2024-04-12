@@ -1,71 +1,65 @@
 import os
 import os.path as osp
-import nest_asyncio
-from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
 from contextlib import asynccontextmanager
-import qdrant_client
+from typing import Any, List, Tuple
 
-from llama_index.llms.openai import OpenAI
-from llama_index.llms.anthropic import Anthropic
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.core import (
-    Document,
-    VectorStoreIndex,
-    Settings,
-    SimpleDirectoryReader,
-    StorageContext,
-)
-from llama_parse import LlamaParse
-from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.vector_stores.qdrant import QdrantVectorStore
+import nest_asyncio
+import qdrant_client
+from dotenv import find_dotenv, load_dotenv
+from fastapi import FastAPI
+from icecream import ic
+from llama_index.core import Settings, StorageContext, VectorStoreIndex
+from llama_index.core.agent import AgentRunner, ReActAgentWorker
+from llama_index.core.chat_engine import CondenseQuestionChatEngine
 from llama_index.core.node_parser import (
     MarkdownElementNodeParser,
-    UnstructuredElementNodeParser,
+    SentenceSplitter,
 )
-from llama_index.core import SQLDatabase
 from llama_index.core.postprocessor import SimilarityPostprocessor
-
-from llama_index.core.query_engine import NLSQLTableQueryEngine
-from llama_index.core.chat_engine import CondenseQuestionChatEngine
-from llama_index.core.agent import AgentRunner, ReActAgentWorker
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
-
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.openai import OpenAI
 from llama_index.packs.query_understanding_agent.step import (
-    QueryUnderstandingAgentWorker,
     HumanInputRequiredException,
+    QueryUnderstandingAgentWorker,
 )
-
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+from pydantic import BaseModel
 from sqlalchemy import create_engine
-from sqlalchemy.engine.base import Engine
-import pandas as pd
 
+from misc import (
+    clarifying_template,
+    custom_prompt,
+    files_metadata,
+    rewrite_query,
+    system_prompt,
+    tool_description,
+)
 from utils import calculate_time, delete_astradb
-from misc import *
-from icecream import ic
 
+from .table_factory import TableEngineFactory
 
 nest_asyncio.apply()
 
 
-#### Hyperparams ####
+# Hyperparams
 table_name = "rag_demo"
-# agent_mode = "react-basic"
-agent_mode = "react-query-understanding"
+agent_mode = "react-basic"
+# agent_mode = "react-query-understanding"
 rag_mode = "advanced"
 model = "gpt-3.5-turbo"
 # model = "claude-3-haiku-20240307"
-file_desc = False
 post_delete_index = False
 verbose = True
 
 
-#### Settings ####
+# Settings
 _ = load_dotenv(find_dotenv())  # read local .env file
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
+os.environ["ANTHROPIC_API_KEY"] = os.getenv(
+    "ANTHROPIC_API_KEY"
+)  # type: ignore
 
 embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
@@ -83,37 +77,28 @@ elif "claude" in model:
 
 Settings.llm = llm
 Settings.embed_model = embed_model
-# Settings.chunk_size = 512
 
 
 class TextInput(BaseModel):
     text: str
 
 
-class TextList(BaseModel):
-    textlist: List[str]
-
-
 class Agent:
-    tools = []
-    clarifying_questions = []
+    tools: List[Any] = []
+    clarifying_questions: List[Tuple[str, str]] = []
     should_end = True
-    # Tạo object kết nối với database
     engine = create_engine("sqlite:///:memory:", future=True)
+    table_factory = TableEngineFactory(
+        node_parser=SentenceSplitter.from_defaults(
+            chunk_size=50, chunk_overlap=10
+        ),
+    )
 
     def __init__(
         self,
         node_parser=None,
         reranker=None,
     ):
-        self.parser = LlamaParse(
-            api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
-            result_type="markdown",  # "markdown" and "text" are available
-            verbose=verbose,
-            num_workers=8,
-            language="en",
-        )
-
         self.node_parser = node_parser
         self.reranker = reranker
         self._load_index()
@@ -132,6 +117,8 @@ class Agent:
             self.agent = AgentRunner(
                 agent_worker, callback_manager=callback_manager
             )
+        # TODO: Improve this
+        # agent can ask back user for clarity
         elif agent_mode == "react-query-understanding":
             callback_manager = llm.callback_manager
             agent_worker = QueryUnderstandingAgentWorker.from_tools(
@@ -158,66 +145,44 @@ class Agent:
 
     @calculate_time
     def add_tool_for_file(self, filepath):
-        """
-        Add tool cho agent, tùy theo hậu tố là .csv hay .pdf, ...
-        mà add tool với hàm tương ứng
+        """Add tool for each file
+        Currently support .csv file
         """
         suff = osp.splitext(filepath)[-1]
 
         if suff == ".csv":
-            toolname, description, table_name = self._get_meta_table(filepath)
-            engine = self._get_sql_engine(table_name)
-        else:
-            if suff in [".txt", ".pdf", ".pptx"]:
-                document = SimpleDirectoryReader(
-                    input_files=[filepath],
-                    file_extractor={
-                        suff: self.parser for suff in [".pdf", ".pptx"]
-                    },
-                ).load_data()
+            metadata = files_metadata[filepath]
+            self.table_factory.add_table_index(
+                filepath=filepath, metadata=metadata
+            )
+            engine = self.table_factory.get_engine(metadata)
+            self._add_tool(
+                toolname="AI_Engineer_Jobs_Query",
+                description=tool_description.format(
+                    file_description=metadata["table_desc"]
+                ),
+                engine=engine,
+            )
+        # TODO
+        elif suff in [".txt", ".pdf", ".pptx"]:
+            raise NotImplementedError
+        elif suff in [".jpg", ".png"]:
+            raise NotImplementedError
 
-            else:
-                raise NotImplementedError
-
-            toolname, description = self._get_meta_doc(filepath)
-            # Add document vào index
-            self._parse_document(document, self.node_parser)
-            # Lấy query engine và cập nhật index chat engine
-            engine, self.query_chat_engine = self._get_query_engine()
-
-        # toolname, description là tên tool với mô tả của tool đó
-        # cần cho agent chọn tool
-        self._add_tool(toolname, description, engine)
         self.get_agent()
 
     def _parse_document(self, documents, node_parser):
-        if not hasattr(self, "index"):  # khởi tạo index lần đầu
-            if rag_mode == "advanced":
-                nodes = node_parser.get_nodes_from_documents(documents)
-                base_nodes, objects = self.node_parser.get_nodes_and_objects(
-                    nodes
-                )
-                self.index = VectorStoreIndex(
-                    nodes=base_nodes + objects,
-                    storage_context=self.storage_context,
-                )
-            elif self.mode == "basic":
-                self.index = VectorStoreIndex.from_documents(
-                    documents, storage_context=self.storage_context
-                )
-            else:
-                raise NotImplementedError
-        else:
-            # nếu có index rồi thì thêm các document vào index
+        if rag_mode == "advanced":
+            nodes = node_parser.get_nodes_from_documents(documents)
+            base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
+            self.index.insert_nodes(base_nodes + objects)
+        elif self.mode == "basic":
             for doc in documents:
                 self.index.insert(
                     document=doc, storage_context=self.storage_context
                 )
-
-    def _get_sql_engine(self, table_name):
-        return NLSQLTableQueryEngine(
-            sql_database=SQLDatabase(self.engine), tables=[table_name], llm=llm
-        )
+        else:
+            raise NotImplementedError
 
     def _get_query_engine(self):
         query_engine = self.index.as_query_engine(
@@ -262,9 +227,9 @@ class Agent:
             ic(prompt)
 
         try:
-            # mặc định cho ReAct agent chat
+            # agent chat as default
             response = self.agent.chat(prompt)
-            # kiểm tra lệnh sql agent dùng nếu query bảng
+            # check sql query
             if verbose:
                 if "sql_query" in response.sources[0].raw_output.metadata:
                     print(response.sources[0].raw_output.metadata["sql_query"])
@@ -277,8 +242,7 @@ class Agent:
             self.clarifying_questions.append((e.message, response))
             self.should_end = False
 
-        except Exception as e:
-            # đề phòng xảy ra lỗi thì sử dụng index chat engine để chat
+        except RuntimeError:
             response = self.query_chat_engine.chat(prompt).response
             if response in ["Empty Response"]:
                 response = auto_response
@@ -302,22 +266,24 @@ async def lifespan(app: FastAPI):
             llm=llm,
             num_workers=8,
         ),
-        reranker=SimilarityPostprocessor(similarity_cutoff=0.5),
+        reranker=SimilarityPostprocessor(
+            similarity_cutoff=0.5
+        ),  # should change other reranker
     )
     yield
     # Clean up the data resources
     if post_delete_index:
-        delete_astradb()
+        delete_astradb(table_name)
 
 
 app = FastAPI(lifespan=lifespan)
 
 
 @app.post("/query", status_code=200)
-async def query(prompt: TextInput):
-    return agents["answer_to_everything"].chat(prompt.text)
+async def query(input: TextInput):
+    return agents["answer_to_everything"].chat(input.text)
 
 
 @app.put("/update", status_code=200)
-async def update(filepath: TextInput):
-    agents["answer_to_everything"].add_tool_for_file(filepath.text)
+async def update(input: TextInput):
+    agents["answer_to_everything"].add_tool_for_file(input.text)
