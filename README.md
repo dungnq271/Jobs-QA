@@ -1,10 +1,10 @@
 # RAG for multiple documents
 
 ## Supported Documents
-- [x] .pdf, .pptx
 - [x] .csv
+- [ ] .pdf, .pptx
 - [ ] .jpg, .png
-  - [x] ocr
+  - [ ] ocr
   - [ ] description
 
 ## Setup
