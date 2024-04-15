@@ -22,6 +22,12 @@ llama-index-readers-file
 llama-index-packs-query-understanding-agent
 llama-index-llms-langchain
 
+selenium
+webdriver_manager
+selectolax
+beautifulsoup4
+lxml
+
 fastapi
 uvicorn
 python-dotenv
