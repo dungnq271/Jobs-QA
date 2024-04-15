@@ -20,6 +20,11 @@ sudo apt install libtesseract-dev
 pip install paddlepaddle paddleocr
 ```
 
+## Scrape jobs posted on Google Jobs
+```
+$ python tuyendung_scraping.py
+```
+
 ## Run
 **Open 1 tab and run**:
 
