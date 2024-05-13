@@ -1,41 +1,15 @@
-# RAG for multiple documents
-
-## Supported Documents
-- [x] .csv
-- [ ] .pdf, .pptx
-- [ ] .jpg, .png
-  - [ ] ocr
-  - [ ] description
+# QA with Google Jobs
 
 ## Setup
 ```
 pip install -r requirements.txt
 ```
 
-Other dependencies (for ocr):
-```
-sudo apt update
-sudo apt install tesseract-ocr
-sudo apt install libtesseract-dev
-pip install paddlepaddle paddleocr
-```
-
-## Scrape jobs posted on Google Jobs
-```
-$ python tuyendung_scraping.py
-```
-
 ## Run
 **Open 1 tab and run**:
 
-V1 (bot with only index query):
 ```
-./scripts/api_chat.sh
-```
-
-V2 (multi-tool bot):
-```
-./scripts/api_agent.sh
+./scripts/api.sh
 ```
 
 **Wait for api startup complete and run in another tab**:
