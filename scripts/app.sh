@@ -1,2 +1,2 @@
 #!/bin/zsh
-streamlit run main.py
+streamlit run app.py
