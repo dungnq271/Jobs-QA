@@ -7,7 +7,7 @@ class BaseScraper(ABC):
     def __init__(
         self,
         output_dpath: str,
-        top_recent: Optional[int] = None,
+        top_recent: Optional[int] = 100,
     ):
         self.output_dpath = output_dpath
         self.top_recent = top_recent
