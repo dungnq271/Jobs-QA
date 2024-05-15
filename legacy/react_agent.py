@@ -1,54 +1,47 @@
 import os
 import os.path as osp
-import nest_asyncio
-from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
 from contextlib import asynccontextmanager
-import qdrant_client
 
-from llama_index.llms.openai import OpenAI
-from llama_index.llms.anthropic import Anthropic
-from llama_index.embeddings.openai import OpenAIEmbedding
+import nest_asyncio
+import pandas as pd
+import qdrant_client
+from dotenv import find_dotenv, load_dotenv
+from fastapi import FastAPI
+from func import file_description
+from icecream import ic
 from llama_index.core import (
-    Document,
-    VectorStoreIndex,
     Settings,
     SimpleDirectoryReader,
+    SQLDatabase,
     StorageContext,
+    VectorStoreIndex,
 )
-from llama_parse import LlamaParse
-from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.vector_stores.qdrant import QdrantVectorStore
+from llama_index.core.agent import AgentRunner, ReActAgentWorker
+from llama_index.core.chat_engine import CondenseQuestionChatEngine
 from llama_index.core.node_parser import (
     MarkdownElementNodeParser,
-    UnstructuredElementNodeParser,
 )
-from llama_index.core import SQLDatabase
 from llama_index.core.postprocessor import SimilarityPostprocessor
-
 from llama_index.core.query_engine import NLSQLTableQueryEngine
-from llama_index.core.chat_engine import CondenseQuestionChatEngine
-from llama_index.core.agent import AgentRunner, ReActAgentWorker
 from llama_index.core.tools import QueryEngineTool, ToolMetadata
-
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.anthropic import Anthropic
+from llama_index.llms.openai import OpenAI
 from llama_index.packs.query_understanding_agent.step import (
-    QueryUnderstandingAgentWorker,
     HumanInputRequiredException,
+    QueryUnderstandingAgentWorker,
 )
-
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+from llama_parse import LlamaParse
+from pydantic import BaseModel
 from sqlalchemy import create_engine
 from sqlalchemy.engine.base import Engine
-import pandas as pd
+
+from src.prompt import QUERY_SQL_DESCRIPTION, QUERY_TEXT_DESCRIPTION
 
 # from unstructured.partition.image import partition_image
 # from paddleocr import PaddleOCR
-
 from utils import calculate_time, delete_astradb
-from misc import *
-from icecream import ic
-
 
 nest_asyncio.apply()
 
@@ -64,11 +57,20 @@ file_desc = False
 post_delete_index = False
 verbose = True
 
+clarifying_template = """
+{question}
+{answer}
+"""
+
+rewrite_query = """
+{orig_question}
+{clarifying_texts}
+"""
 
 #### Main app ####
 _ = load_dotenv(find_dotenv())  # read local .env file
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
-os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
+os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")  # type: ignore
 
 embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
@@ -96,12 +98,12 @@ class TextInput(BaseModel):
 
 
 class TextList(BaseModel):
-    textlist: List[str]
+    textlist: list[str]
 
 
 class Agent:
-    tools = []
-    clarifying_questions = []
+    tools: list[QueryEngineTool] = []
+    clarifying_questions: list[tuple[str, str]] = []
     should_end = True
     # Tạo object kết nối với database
     engine = create_engine("sqlite:///:memory:", future=True)
@@ -138,7 +140,7 @@ class Agent:
                 self.tools,
                 llm=llm,
                 verbose=True,
-                system_prompt=system_prompt,
+                # system_prompt=system_prompt,
                 callback_manager=callback_manager,
             )
             self.agent = AgentRunner(
@@ -149,7 +151,7 @@ class Agent:
             agent_worker = QueryUnderstandingAgentWorker.from_tools(
                 self.tools,
                 llm=llm,
-                system_prompt=system_prompt,
+                # system_prompt=system_prompt,
                 callback_manager=callback_manager,
             )
             self.agent = AgentRunner(
@@ -159,7 +161,6 @@ class Agent:
             raise NotImplementedError
 
     def _load_index(self):
-        # Load vector database, có thể thay đổi thành các loại vectordb trong llamaindex
         # ở đây đang dùng astradb
         # self.vector_store = AstraDBVectorStore(
         #     token=os.getenv("ASTRA_TOKEN"),
@@ -198,7 +199,9 @@ class Agent:
         else:
             # if suff in [".jpg", ".png"]:
             #     elements = ocr.ocr(filepath, cls=False)
-            #     extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
+            #     extracted_text = '\n\n'.join([
+            #         elem[-1][0] for elem in elements
+            #     ])
             #     if verbose:
             #         print(extracted_text)
             #     document = [Document(text=extracted_text)]
@@ -256,27 +259,21 @@ class Agent:
         self.add_df_to_sql_database(table_name, df, self.engine)
         toolname = f"sql_{table_name}"
 
-        if file_desc:
-            fdesc = file_description[table_name]
-        else:
-            fdesc = table_name
+        fdesc = file_description[table_name] if file_desc else table_name
 
-        description = query_sql_description.format(file_description=fdesc)
+        description = QUERY_SQL_DESCRIPTION.format(file_description=fdesc)
         return toolname, description, table_name
 
     def _get_meta_doc(self, filepath):
         filename = osp.basename(filepath)
         filename = osp.splitext(filename)[0]
 
-        if file_desc:
-            fdesc = file_description[filename]
-        else:
-            fdesc = filename
+        fdesc = file_description[filename] if file_desc else filename
 
         # mỗi từ trong mô tả được ngăn cách bằng ' '
         if "-" in fdesc:
             fdesc = " ".join(fdesc.split("-"))
-        description = query_text_description.format(file_description=fdesc)
+        description = QUERY_TEXT_DESCRIPTION.format(file_description=fdesc)
 
         # tên của tool là 'query' cùng với các từ trong
         # tên file được ngăn cách bằng '_'
@@ -297,7 +294,7 @@ class Agent:
         )
         return query_engine, CondenseQuestionChatEngine.from_defaults(
             query_engine=query_engine,
-            condense_question_prompt=custom_prompt,
+            # condense_question_prompt=custom_prompt,
             chat_history=[],
             verbose=True,
         )
@@ -335,9 +332,11 @@ class Agent:
             # mặc định cho ReAct agent chat
             response = self.agent.chat(prompt)
             # kiểm tra lệnh sql agent dùng nếu query bảng
-            if verbose:
-                if "sql_query" in response.sources[0].raw_output.metadata:
-                    print(response.sources[0].raw_output.metadata["sql_query"])
+            if (
+                verbose
+                and "sql_query" in response.sources[0].raw_output.metadata
+            ):
+                print(response.sources[0].raw_output.metadata["sql_query"])
             response = response.response
             self.should_end = True
             self.clarifying_questions = []
@@ -347,7 +346,7 @@ class Agent:
             self.clarifying_questions.append((e.message, response))
             self.should_end = False
 
-        except Exception as e:
+        except Exception:
             # đề phòng xảy ra lỗi thì sử dụng index chat engine để chat
             response = self.query_chat_engine.chat(prompt).response
             if response in ["Empty Response"]:
@@ -377,7 +376,7 @@ async def lifespan(app: FastAPI):
     yield
     # Clean up the data resources
     if post_delete_index:
-        delete_astradb()
+        delete_astradb(table_name)
 
 
 app = FastAPI(lifespan=lifespan)
