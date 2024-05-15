@@ -3,7 +3,7 @@ from .debug import debug_subquestion, debug_table_qa
 from .io import create_dir, get_config, save_file
 from .logger import get_logger, setup_logging
 from .meta import CHUNKING_REGEX, metadata
-from .misc import calculate_time, modify_days_to_3digits
+from .func import calculate_time, modify_days_to_3digits
 
 __all__ = [
     "get_response",
