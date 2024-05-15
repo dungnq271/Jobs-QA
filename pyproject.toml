@@ -1,7 +1,27 @@
-[tool.black]
-line-length = 79
-target-version = ['py310']
+[project]
+# Support Python 3.10+.
+requires-python = ">=3.10"
 
-[tool.isort]
-profile = "black"
-line_length = 79
+[tool.ruff]
+# Set the maximum line length to 79.
+line-length = 79
+
+[tool.ruff.lint]
+select = [
+    # pycodestyle
+    "E",
+    # Pyflakes
+    "F",
+    # pyupgrade
+    "UP",
+    # flake8-bugbear
+    "B",
+    # flake8-simplify
+    "SIM",
+    # isort
+    "I",
+]
+
+[tool.ruff.format]
+indent-style = "space"
+skip-magic-trailing-comma = "true"
