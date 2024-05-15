@@ -1,4 +1,4 @@
 from .base_database import BaseDatabase
-from .qdrant import QdrantTableDatabase, QdrantTextDatabase
+from .qdrant import QdrantTextDatabase
 
-__all__ = ["BaseDatabase", "QdrantTextDatabase", "QdrantTableDatabase"]
+__all__ = ["BaseDatabase", "QdrantTextDatabase"]
