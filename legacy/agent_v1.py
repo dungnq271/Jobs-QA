@@ -1,49 +1,38 @@
 import os
 import os.path as osp
-import nest_asyncio
-from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
 from contextlib import asynccontextmanager
 
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.core import (
-    Document,
-    VectorStoreIndex,
-    Settings,
-    SimpleDirectoryReader,
-    StorageContext,
-)
-from llama_parse import LlamaParse
-from llama_index.vector_stores.astra import AstraDBVectorStore
-from llama_index.core.node_parser import (
-    MarkdownElementNodeParser,
-    UnstructuredElementNodeParser,
-)
-from llama_index.core import SQLDatabase
-from llama_index.core.postprocessor import SimilarityPostprocessor
-
-from llama_index.core.query_engine import NLSQLTableQueryEngine
-from llama_index.core.agent import ReActAgent
-from llama_index.core.tools import QueryEngineTool, ToolMetadata
-
-from langchain_openai import OpenAI as lc_OpenAI
-from langchain.chains import ConversationChain
-from langchain.chains.conversation.memory import ConversationBufferMemory
-
-from sqlalchemy import create_engine
-from sqlalchemy.engine.base import Engine
+import nest_asyncio
 import pandas as pd
 from astrapy.db import AstraDB
+from dotenv import find_dotenv, load_dotenv
+from fastapi import FastAPI
+from func import file_description
+from llama_index.core import (
+    Settings,
+    SimpleDirectoryReader,
+    SQLDatabase,
+    StorageContext,
+    VectorStoreIndex,
+)
+from llama_index.core.agent import ReActAgent
+from llama_index.core.node_parser import (
+    MarkdownElementNodeParser,
+)
+from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.core.query_engine import NLSQLTableQueryEngine
+from llama_index.core.tools import QueryEngineTool, ToolMetadata
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
+from llama_index.vector_stores.astra import AstraDBVectorStore
+from llama_parse import LlamaParse
+from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.engine.base import Engine
 
 # from unstructured.partition.image import partition_image
 # from paddleocr import PaddleOCR
-
 from utils import calculate_time
-from misc import file_description
-
 
 nest_asyncio.apply()
 
@@ -59,7 +48,7 @@ verbose = True
 
 #### Main app ####
 _ = load_dotenv(find_dotenv())  # read local .env file
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
 
 embed_model = OpenAIEmbedding(
     model="text-embedding-3-small",
@@ -82,14 +71,13 @@ class TextInput(BaseModel):
 
 
 class TextList(BaseModel):
-    textlist: List[str]
+    textlist: list[str]
 
 
 class Agent:
-
-    tools = []
+    tools: list[QueryEngineTool] = []
     engine = create_engine("sqlite:///:memory:", future=True)
-    text_filenames = []
+    text_filenames: list[str] = []
     bootstrap_tool_name = "bootstrap"
 
     def __init__(
@@ -142,10 +130,12 @@ class Agent:
             self.tools,
             llm=llm,
             verbose=True,
-            system_prompt=""" 
+            system_prompt="""
             You are an agent designed to answer queries from user.
-            Please ALWAYS use the tools provided to answer a question. Do not rely on prior knowledge.
-            If there is no information please answer you don't have that information.
+            Please ALWAYS use the tools provided to answer a question.
+            Do not rely on prior knowledge.
+            If there is no information please answer
+            you don't have that information.
             """,
         )
 
@@ -164,10 +154,14 @@ class Agent:
             self._add_sql_engine(table_name)
         else:
             # if suff in [".jpg", ".png"]:
-            #     # elements = partition_image(filepath)
-            #     # extracted_text = '\n\n'.join([elem.text for elem in elements])
+            #     elements = partition_image(filepath)
+            #     extracted_text = '\n\n'.join([
+            #         elem.text for elem in elements
+            #     ])
             #     elements = ocr.ocr(filepath, cls=False)
-            #     extracted_text = '\n\n'.join([elem[-1][0] for elem in elements])
+            #     extracted_text = '\n\n'.join([
+            #         elem[-1][0] for elem in elements
+            #     ])
             #     if verbose:
             #         print(extracted_text)
             #     document = [Document(text=extracted_text)]
@@ -233,7 +227,8 @@ class Agent:
             metadata=ToolMetadata(
                 name=f"sql_{table_name}",
                 description=(
-                    "Useful for translating a natural language query into an SQL query over table"
+                    "Useful for translating a natural language query into "
+                    "an SQL query over table"
                     f"{file_description[table_name]}"
                 ),
             ),
@@ -241,10 +236,7 @@ class Agent:
         self.tools.append(sql_tool)
 
     def _add_query_engine(self, filename):
-        if file_desc:
-            desc = file_description[filename]
-        else:
-            desc = filename
+        desc = file_description[filename] if file_desc else filename
 
         # each word in desc is separated by space character
         if "-" in desc:
@@ -267,9 +259,11 @@ class Agent:
                 ),
             ),
         )
-        if len(self.tools) > 0:
-            if self.tools[0].metadata.name == self.bootstrap_tool_name:
-                self.tools.pop(0)
+        if (
+            len(self.tools) > 0
+            and self.tools[0].metadata.name == self.bootstrap_tool_name
+        ):
+            self.tools.pop(0)
         self.tools.append(query_tool)
 
     @calculate_time
@@ -281,16 +275,14 @@ class Agent:
         else:
             try:
                 response = self.agent.chat(prompt)
-                if verbose:
-                    if "sql_query" in response.sources[0].raw_output.metadata:
-                        print(
-                            response.sources[0].raw_output.metadata[
-                                "sql_query"
-                            ]
-                        )
+                if (
+                    verbose
+                    and "sql_query" in response.sources[0].raw_output.metadata
+                ):
+                    print(response.sources[0].raw_output.metadata["sql_query"])
                 response = response.response
 
-            except Exception as e:
+            except Exception:
                 response = self.query_engine.query(prompt).response
                 if response in ["Empty Response"]:
                     response = auto_response
