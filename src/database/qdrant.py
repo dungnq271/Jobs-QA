@@ -1,5 +1,4 @@
 import os.path as osp
-from abc import abstractmethod
 from typing import List, Optional
 
 from llama_index.core.schema import Document, TextNode, TransformComponent
@@ -43,9 +42,7 @@ class QdrantTextDatabase(BaseDatabase):
         """Insert documents"""
         for document in documents:
             if "file_path" not in document.metadata.keys():
-                raise Exception(
-                    "Document doesn't include file_path in metadata !"
-                )
+                raise Exception("Document doesn't include file_path in metadata !")
             self._index.insert(document)
 
     def update_documents(self, documents: List[Document]):
@@ -56,16 +53,9 @@ class QdrantTextDatabase(BaseDatabase):
         """Delete documents"""
         raise NotImplementedError
 
-    @abstractmethod
     @calculate_time
     def preprocess(self, documents: List[Document], **kwargs):
         """Preprocess the documents"""
-
-
-class QdrantTableDatabase(QdrantTextDatabase):
-
-    def preprocess(self, documents: List[Document], **kwargs):
-        """Embed the chunked text from file to a vector database"""
         self._logger.info("Preprocess the document...")
         docstore_path = osp.join(self._persist_dir, DOCSTORE_FNAME)
 
@@ -76,9 +66,7 @@ class QdrantTableDatabase(QdrantTextDatabase):
             self._docstore.add_documents(documents)
             self._docstore.persist(persist_path=docstore_path)
         else:
-            self._docstore = SimpleDocumentStore.from_persist_dir(
-                self._persist_dir
-            )
+            self._docstore = SimpleDocumentStore.from_persist_dir(self._persist_dir)
 
         docstore_dict = self._docstore.to_dict()
         id2nodes = {
