@@ -1,7 +1,7 @@
 import os
 import os.path as osp
 from contextlib import asynccontextmanager
-from typing import Any, Dict, Optional
+from typing import Any
 
 import nest_asyncio
 import pandas as pd
@@ -17,7 +17,7 @@ from llama_index.llms.openai import OpenAI
 from pydantic import BaseModel
 from sqlalchemy import create_engine
 
-from src.database import QdrantTableDatabase
+from src.database import QdrantTextDatabase
 from src.engine import TableEngineFactory, TextLinkToSource
 from src.reader import TableReader
 from src.scraper import JobScraper
@@ -29,7 +29,7 @@ from src.utils import CHUNKING_REGEX, get_config, metadata, setup_logging
 nest_asyncio.apply()
 
 
-env: Dict[str, Any] = {}
+env: dict[str, Any] = {}
 
 
 class TextInput(BaseModel):
@@ -48,12 +48,12 @@ def get_llm(model):
 
 def get_qa_engine(
     filepath: str = "./documents/posted_jobs.csv",
-    table: Optional[pd.DataFrame] = None,
+    table: pd.DataFrame | None = None,
 ):
     documents = env["reader"].load_data(
         filepath=filepath, metadata=metadata, table=table
     )
-    id_node_mapping = env["vector_db"].preprocess(documents)
+    id_node_mapping = env["vector_database"].preprocess(documents)
     env["qa_engine"] = env["factory"].get_qa_engine(
         metadata, id_node_mapping=id_node_mapping
     )
@@ -62,9 +62,7 @@ def get_qa_engine(
 def startup():
     _ = load_dotenv(find_dotenv())  # read local .env file
     os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
-    os.environ["ANTHROPIC_API_KEY"] = os.getenv(
-        "ANTHROPIC_API_KEY"
-    )  # type: ignore
+    os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")  # type: ignore
 
     config = get_config("./configs/scraper_config.yml")
     setup_logging(
@@ -97,12 +95,12 @@ def startup():
     env["scraper"] = JobScraper(
         output_dpath=config["output_dir"], top_recent=config["top_recent"]
     )
-    env["vector_db"] = QdrantTableDatabase(
+    env["vector_database"] = QdrantTextDatabase(
         collection_name="jobs_qa",
         url="http://0.0.0.0:6333",
         enable_hybrid=False,
     )
-    env["vector_store_index"] = env["vector_db"].get_index()
+    env["vector_store_index"] = env["vector_database"].get_index()
     env["db_engine"] = create_engine("sqlite:///:memory:", future=True)
     env["reader"] = TableReader(db_engine=env["db_engine"])
     env["factory"] = TableEngineFactory(
