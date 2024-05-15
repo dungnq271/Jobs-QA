@@ -1,6 +1,10 @@
+"""
+Adapted from: https://stackoverflow.com/questions/75473465/scrape-and-extract-job-data-from-google-jobs-using-selenium-and-store-in-pandas
+"""
+
+import contextlib
 import os.path as osp
 import time
-from typing import Dict, List
 
 import pandas as pd
 from selenium import webdriver
@@ -34,11 +38,7 @@ xpaths = {
 
 
 class JobScraper(BaseScraper):
-    def __init__(
-        self,
-        output_dpath: str,
-        top_recent: int,
-    ):
+    def __init__(self, output_dpath: str, top_recent: int):
         create_dir(output_dpath)
 
         # Initialize selenium web driver
@@ -58,7 +58,7 @@ class JobScraper(BaseScraper):
             0
         ].click()
 
-        data: Dict[str, List] = {key: [] for key in xpaths}
+        data: dict[str, list] = {key: [] for key in xpaths}
         items_done: int = 0
 
         while items_done < self.top_recent:
@@ -88,18 +88,14 @@ class JobScraper(BaseScraper):
                     ".//div[contains(@class, 'YgLbBe')]//div[@role='button']",
                 )
                 if len(expand_buttons) > 0:
-                    try:
-                        expand_buttons[-1].click()
-                    except (
-                        NoSuchElementException,
-                        ElementNotInteractableException,
+                    with contextlib.suppress(
+                        NoSuchElementException, ElementNotInteractableException
                     ):
-                        pass
+                        expand_buttons[-1].click()
 
                 for key in xpaths:
                     try:
                         if key == "Description":
-
                             t = self._driver.find_elements(
                                 "xpath", xpaths[key]
                             )[-1].text
