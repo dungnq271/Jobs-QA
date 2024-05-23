@@ -1,12 +1,34 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
-# Support Python 3.10+.
+name = "alphii-agent"
 requires-python = ">=3.10"
+authors = [
+    {name="Leonard Nguyen", email="dunnguyen2712002@gmail.com"}
+]
+readme = "README.md"
+version = "0.2.0"
 
 [tool.ruff]
-# Set the maximum line length to 79.
-line-length = 79
+line-length = 88
+exclude = ["experimental/*.py"]
 
 [tool.ruff.lint]
+ignore = [
+   "UP015",   # More clarity
+   # Messes with pydantic
+   "UP035",
+   "UP006",
+   # Same as llama-index
+   "TCH002",
+   # Too strict
+   "B006",
+   "B008",
+   "B023",
+   "B028",
+]
 select = [
     # pycodestyle
     "E",
@@ -21,6 +43,6 @@ select = [
     # isort
     "I",
 ]
-
-[tool.ruff.format]
-indent-style = "space"
+unfixable = [
+    "ERA001",  # Same as llama-index
+]
