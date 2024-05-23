@@ -1,5 +1,4 @@
 import os.path as osp
-from typing import List, Optional
 
 from llama_index.core.schema import Document, TextNode, TransformComponent
 from llama_index.core.service_context import ServiceContext
@@ -20,10 +19,10 @@ class QdrantTextDatabase(BaseDatabase):
     def __init__(
         self,
         collection_name: str,
-        client: Optional[QdrantClient] = None,
-        url: Optional[str] = None,
-        service_context: Optional[ServiceContext] = None,
-        transformations: Optional[List[TransformComponent]] = None,
+        client: QdrantClient | None = None,
+        url: str | None = None,
+        service_context: ServiceContext | None = None,
+        transformations: list[TransformComponent] | None = None,
         enable_hybrid=True,
         persist_dir: str = "./storage",
     ):
@@ -38,23 +37,23 @@ class QdrantTextDatabase(BaseDatabase):
         self._logger = get_logger(__name__)
         self._persist_dir = persist_dir
 
-    def insert_documents(self, documents: List[Document]):
+    def insert_documents(self, documents: list[Document]):
         """Insert documents"""
         for document in documents:
-            if "file_path" not in document.metadata.keys():
+            if "file_path" not in document.metadata:
                 raise Exception("Document doesn't include file_path in metadata !")
             self._index.insert(document)
 
-    def update_documents(self, documents: List[Document]):
+    def update_documents(self, documents: list[Document]):
         """Update documents"""
         raise NotImplementedError
 
-    def delete_documents(self, file_paths: List[str]):
+    def delete_documents(self, file_paths: list[str]):
         """Delete documents"""
         raise NotImplementedError
 
     @calculate_time
-    def preprocess(self, documents: List[Document], **kwargs):
+    def preprocess(self, documents: list[Document], **kwargs):
         """Preprocess the documents"""
         self._logger.info("Preprocess the document...")
         docstore_path = osp.join(self._persist_dir, DOCSTORE_FNAME)
