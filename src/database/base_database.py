@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
 
 from llama_index.core import VectorStoreIndex
 from llama_index.core.schema import Document, TransformComponent
@@ -14,10 +13,10 @@ class BaseDatabase(ABC):
     def __init__(
         self,
         collection_name: str,
-        client: Optional[QdrantClient] = None,
-        url: Optional[str] = None,
-        service_context: Optional[ServiceContext] = None,
-        transformations: Optional[List[TransformComponent]] = None,
+        client: QdrantClient | None = None,
+        url: str | None = None,
+        service_context: ServiceContext | None = None,
+        transformations: list[TransformComponent] | None = None,
         enable_hybrid=False,
     ):
         """Initial database."""
@@ -49,13 +48,13 @@ class BaseDatabase(ABC):
         return self._index
 
     @abstractmethod
-    def insert_documents(self, documents: List[Document]):
+    def insert_documents(self, documents: list[Document]):
         """Add document to the database."""
 
     @abstractmethod
-    def update_documents(self, documents: List[Document]):
+    def update_documents(self, documents: list[Document]):
         """Update documents"""
 
     @abstractmethod
-    def delete_documents(self, file_paths: List[str]):
+    def delete_documents(self, file_paths: list[str]):
         """Delete document from the database."""
