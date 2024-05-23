@@ -1,6 +1,5 @@
 openai
 streamlit
-streamlit_chat
 
 qdrant_client
 
