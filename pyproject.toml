@@ -17,7 +17,9 @@ exclude = ["experimental/*.py"]
 
 [tool.ruff.lint]
 ignore = [
-   "UP015",   # More clarity
+   # More clarity
+   "UP015",
+   "SIM910",
    # Messes with pydantic
    "UP035",
    "UP006",
