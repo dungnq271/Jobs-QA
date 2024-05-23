@@ -111,9 +111,7 @@ class Agent:
             collection_name=self.collection_name,
             embedding_dimension=1536,
         )
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.vstore
-        )
+        self.storage_context = StorageContext.from_defaults(vector_store=self.vstore)
         self.index = VectorStoreIndex.from_vector_store(
             self.vstore, storage_context=self.storage_context
         )
@@ -168,9 +166,7 @@ class Agent:
             if suff in [".pdf", ".pptx"]:
                 document = SimpleDirectoryReader(
                     input_files=[filepath],
-                    file_extractor={
-                        suff: self.parser for suff in [".pdf", ".pptx"]
-                    },
+                    file_extractor={suff: self.parser for suff in [".pdf", ".pptx"]},
                 ).load_data()
             else:
                 raise NotImplementedError
@@ -185,9 +181,7 @@ class Agent:
         if not hasattr(self, "index"):
             if self.mode == "advanced":
                 nodes = node_parser.get_nodes_from_documents(documents)
-                base_nodes, objects = self.node_parser.get_nodes_and_objects(
-                    nodes
-                )
+                base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
                 self.index = VectorStoreIndex(
                     nodes=base_nodes + objects,
                     storage_context=self.storage_context,
@@ -200,9 +194,7 @@ class Agent:
                 raise NotImplementedError
         else:
             for doc in documents:
-                self.index.insert(
-                    document=doc, storage_context=self.storage_context
-                )
+                self.index.insert(document=doc, storage_context=self.storage_context)
 
     def _add_table(self, filepath):
         filename = osp.basename(filepath)
@@ -275,10 +267,7 @@ class Agent:
         else:
             try:
                 response = self.agent.chat(prompt)
-                if (
-                    verbose
-                    and "sql_query" in response.sources[0].raw_output.metadata
-                ):
+                if verbose and "sql_query" in response.sources[0].raw_output.metadata:
                     print(response.sources[0].raw_output.metadata["sql_query"])
                 response = response.response
 
