@@ -1,32 +1,29 @@
 import os
-import nest_asyncio
-from dotenv import load_dotenv, find_dotenv
-from fastapi import FastAPI
-from pydantic import BaseModel
-from typing import List
 
-from llama_index.llms.openai import OpenAI
-from llama_index.embeddings.openai import OpenAIEmbedding
+import nest_asyncio
+from dotenv import find_dotenv, load_dotenv
+from fastapi import FastAPI
 from llama_index.core import (
-    VectorStoreIndex,
     Settings,
     SimpleDirectoryReader,
     StorageContext,
+    VectorStoreIndex,
 )
-from llama_parse import LlamaParse
-from llama_index.vector_stores.astra import AstraDBVectorStore
 from llama_index.core.node_parser import MarkdownElementNodeParser
-from llama_index.core import StorageContext
 from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.embeddings.openai import OpenAIEmbedding
+from llama_index.llms.openai import OpenAI
+from llama_index.vector_stores.astra import AstraDBVectorStore
+from llama_parse import LlamaParse
+from pydantic import BaseModel
 
 from utils import calculate_time
-
 
 nest_asyncio.apply()
 
 
 _ = load_dotenv(find_dotenv())  # read local .env file
-os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
 
 
 embed_model = OpenAIEmbedding(
@@ -50,7 +47,7 @@ class TextInput(BaseModel):
 
 
 class TextList(BaseModel):
-    textlist: List[str]
+    textlist: list[str]
 
 
 class TextParser:
@@ -84,9 +81,7 @@ class TextParser:
             collection_name=self.collection_name,
             embedding_dimension=1536,
         )
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.vstore
-        )
+        self.storage_context = StorageContext.from_defaults(vector_store=self.vstore)
         self.index = VectorStoreIndex.from_vector_store(
             self.vstore, storage_context=self.storage_context
         )
@@ -108,9 +103,7 @@ class TextParser:
         if not hasattr(self, "index"):
             if self.mode == "advanced":
                 nodes = self.node_parser.get_nodes_from_documents(documents)
-                base_nodes, objects = self.node_parser.get_nodes_and_objects(
-                    nodes
-                )
+                base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
                 self.index = VectorStoreIndex(
                     nodes=base_nodes + objects,
                     storage_context=self.storage_context,
@@ -123,9 +116,7 @@ class TextParser:
                 raise NotImplementedError
         else:
             for doc in documents:
-                self.index.insert(
-                    document=doc, storage_context=self.storage_context
-                )
+                self.index.insert(document=doc, storage_context=self.storage_context)
 
         self._get_query_engine()
 
