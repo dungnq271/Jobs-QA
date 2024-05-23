@@ -1,5 +1,3 @@
-from typing import Dict, Optional
-
 import pandas as pd
 from fsspec.implementations.local import LocalFileSystem
 from llama_index.core import Document
@@ -16,28 +14,25 @@ class TableReader(BaseReader):
     def __init__(self, db_engine):
         self.db_engine = db_engine
 
-    def preprocess_dataframe(self, df: DataFrame, metadata: Dict, **kwargs):
-        if metadata.get("renamed_column", None):
+    def preprocess_dataframe(self, df: DataFrame, metadata: dict, **kwargs):
+        if metadata.get("renamed_column"):
             df = df.rename(columns=metadata["renamed_column"])
-        if metadata.get("column_map_function", None):
+        if metadata.get("column_map_function"):
             for col, func in metadata["column_map_function"].items():
                 df[col] = df[col].apply(lambda x: func(x))
         return df
 
-    def preprocess_metadata(self, df: DataFrame, metadata: Dict, **kwargs):
+    def preprocess_metadata(self, df: DataFrame, metadata: dict, **kwargs):
         metadata["all_columns"] = list(metadata["column_description"].keys())
         return metadata
 
-    def add_table_to_db_engine(self, df: DataFrame, metadata: Dict):
+    def add_table_to_db_engine(self, df: DataFrame, metadata: dict):
         table_name = metadata["table_name"]
         df.to_sql(table_name, self.db_engine)  # add into database
 
-    def get_documents(self, metadata: Dict, file_metadata: Dict):
-
+    def get_documents(self, metadata: dict, file_metadata: dict):
         with self.db_engine.connect() as conn:
-            cursor = conn.execute(
-                text(f'SELECT * FROM "{metadata["table_name"]}"')
-            )
+            cursor = conn.execute(text(f'SELECT * FROM "{metadata["table_name"]}"'))
             result = cursor.fetchall()
 
         documents = []
@@ -50,10 +45,8 @@ class TableReader(BaseReader):
             column_descriptions = metadata["column_description"]
             column_names = column_descriptions.keys()
 
-            for name, value in zip(column_names, infos):
-                column_description = (
-                    column_descriptions[name]["description"] or name
-                )
+            for name, value in zip(column_names, infos, strict=False):
+                column_description = column_descriptions[name]["description"] or name
                 info_strs.append(f"{column_description}: {value}")
 
             all_info_str = "\n".join(info_strs)
@@ -91,21 +84,19 @@ class TableReader(BaseReader):
 
     def load_data(
         self,
-        filepath: str,
-        metadata: Dict,
-        table: Optional[pd.DataFrame] = None,
+        file_path: str,
+        metadata: dict,
+        table: pd.DataFrame | None = None,
         **kwargs,
     ):
         if table is None:
-            table = pd.read_csv(filepath)
+            table = pd.read_csv(file_path)
 
         table = self.preprocess_dataframe(table, metadata)
         self.add_table_to_db_engine(df=table, metadata=metadata)
         metadata = self.preprocess_metadata(df=table, metadata=metadata)
 
-        file_metadata = default_file_metadata_func(file_path=filepath, fs=fs)
+        file_metadata = default_file_metadata_func(file_path=file_path, fs=fs)
 
-        documents = self.get_documents(
-            metadata=metadata, file_metadata=file_metadata
-        )
+        documents = self.get_documents(metadata=metadata, file_metadata=file_metadata)
         return documents
