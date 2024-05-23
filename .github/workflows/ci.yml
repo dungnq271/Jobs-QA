@@ -38,8 +38,12 @@ jobs:
 
       - name: Lint with Ruf
         run: |
-          ruff --output-format=github .
+          ruff check --output-format=github .
+
+      - name: Format with Ruf
+        run: |
+          ruff format .
 
       - name: Test with Tox
         run: |
-          tox -e py
+          tox
