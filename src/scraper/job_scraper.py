@@ -27,13 +27,10 @@ xpaths = {
     "Location": "./div[4]/div/div[2]",
     "Source": "./div[4]/div/div[3]",
     "Posted": ".//*[name()='path'][contains(@d,'M11.99')]/ancestor::div[1]",
-    "Full / Part Time": ".//*[name()='path'][contains(@d,'M20 6')]/"
-    "ancestor::div[1]",
+    "Full / Part Time": ".//*[name()='path'][contains(@d,'M20 6')]/" "ancestor::div[1]",
     "Salary": ".//*[name()='path'][@fill-rule='evenodd']/ancestor::div[1]",
-    "Description": ".//div[contains(@class, 'YgLbBe')]//"
-    "span[@class='HBvzbc']",
-    "Link": ".//div[contains(@class, 'B8oxKe')]//"
-    "a[contains(@class, 'pMhGee')]",
+    "Description": ".//div[contains(@class, 'YgLbBe')]//" "span[@class='HBvzbc']",
+    "Link": ".//div[contains(@class, 'B8oxKe')]//" "a[contains(@class, 'pMhGee')]",
 }
 
 
@@ -42,21 +39,19 @@ class JobScraper(BaseScraper):
         create_dir(output_dpath)
 
         # Initialize selenium web driver
-        options = Options()
-        options.add_experimental_option("detach", True)  # keep the window open
-
-        self._driver = webdriver.Chrome(
-            service=Service(ChromeDriverManager().install()), options=options
-        )
+        self.options = Options()
+        self.options.add_experimental_option("detach", True)  # keep the window open
 
         super().__init__(output_dpath, top_recent)
 
     def scrape(self, url: str, name: str):
+        self._driver = webdriver.Chrome(
+            service=Service(ChromeDriverManager().install()),
+            options=self.options,
+        )
         self._driver.get(url)
         self._driver.maximize_window()
-        self._driver.find_elements("xpath", ".//div[@id='search']//a[1]")[
-            0
-        ].click()
+        self._driver.find_elements("xpath", ".//div[@id='search']//a[1]")[0].click()
 
         data: dict[str, list] = {key: [] for key in xpaths}
         items_done: int = 0
@@ -96,17 +91,15 @@ class JobScraper(BaseScraper):
                 for key in xpaths:
                     try:
                         if key == "Description":
-                            t = self._driver.find_elements(
-                                "xpath", xpaths[key]
-                            )[-1].text
+                            t = self._driver.find_elements("xpath", xpaths[key])[
+                                -1
+                            ].text
                         elif key == "Link":
-                            t = self._driver.find_elements(
-                                "xpath", xpaths[key]
-                            )[-1].get_attribute("href")
+                            t = self._driver.find_elements("xpath", xpaths[key])[
+                                -1
+                            ].get_attribute("href")
                         else:
-                            t = li.find_element(
-                                "xpath", xpaths[key]
-                            ).get_attribute(
+                            t = li.find_element("xpath", xpaths[key]).get_attribute(
                                 "src" if key == "Logo" else "innerText"
                             )
                     except NoSuchElementException:
