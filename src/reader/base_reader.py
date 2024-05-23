@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Optional
 
 import pandas as pd
 
@@ -10,9 +9,9 @@ class BaseReader(ABC):
     @abstractmethod
     def load_data(
         self,
-        filepath: str,
-        metadata: Dict,
-        table: Optional[pd.DataFrame] = None,
+        file_path: str,
+        metadata: dict,
+        table: pd.DataFrame | None = None,
         **kwargs,
     ):
         """Get list of documents or nodes"""
