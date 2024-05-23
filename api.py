@@ -15,6 +15,7 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.anthropic import Anthropic
 from llama_index.llms.openai import OpenAI
 from pydantic import BaseModel
+from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 
 from src.database import QdrantTextDatabase
@@ -47,11 +48,11 @@ def get_llm(model):
 
 
 def get_qa_engine(
-    filepath: str = "./documents/posted_jobs.csv",
+    file_path: str = "./documents/posted_jobs.csv",
     table: pd.DataFrame | None = None,
 ):
     documents = env["reader"].load_data(
-        filepath=filepath, metadata=metadata, table=table
+        file_path=file_path, metadata=metadata, table=table
     )
     id_node_mapping = env["vector_database"].preprocess(documents)
     env["qa_engine"] = env["factory"].get_qa_engine(
@@ -64,40 +65,47 @@ def startup():
     os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
     os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")  # type: ignore
 
-    config = get_config("./configs/scraper_config.yml")
-    setup_logging(
-        log_dir=config["output_dir"], config_fpath=config["logger_fpath"]
-    )
+    config = get_config("./config/scraper_config.yml")
+    setup_logging(log_dir=config["output_dir"], config_fpath=config["logger_fpath"])
 
-    model = "gpt-3.5-turbo"
-    # model = "claude-3-haiku-20240307"
-    # model = "claude-3-sonnet-20240229"
-
-    Settings.llm = get_llm(model)
-    Settings.embed_model = OpenAIEmbedding(
+    DEFAULT_COLLECTION_NAME = "agent_demo"
+    DEFAULT_EMBED_MODEL = OpenAIEmbedding(
         model="text-embedding-3-small",
         # model="text-embedding-ada-002",
         timeout=60,
         max_tries=3,
     )
-    Settings.node_parser = SentenceSplitter.from_defaults(
+
+    DEFAULT_MODEL_NAME = "gpt-3.5-turbo"
+    # DEFAULT_MODEL_NAME = "claude-3-haiku-20240307"
+    # DEFAULT_MODEL_NAME = "claude-3-sonnet-20240229"
+
+    DEFAULT_LLM = get_llm(DEFAULT_MODEL_NAME)
+    DEFAULT_NODE_PARSER = SentenceSplitter.from_defaults(
         chunk_size=73,
         chunk_overlap=10,
         secondary_chunking_regex=CHUNKING_REGEX,
     )
-    Settings.postprocessors = [SimilarityPostprocessor(similarity_cutoff=0.5)]
-    Settings.transformations = [
-        Settings.node_parser,
-        Settings.embed_model,
+    DEFAULT_POSTPROCESSORS = [SimilarityPostprocessor(similarity_cutoff=0.5)]
+    DEFAULT_TRANSFORMATIONS = [
+        DEFAULT_NODE_PARSER,
+        DEFAULT_EMBED_MODEL,
         TextLinkToSource(),
     ]
+    DEFAULT_CLIENT_QDRANT = QdrantClient(url=os.getenv("QDRANT_URL"))
+
+    Settings.llm = DEFAULT_LLM
+    Settings.embed_model = DEFAULT_EMBED_MODEL
+    Settings.node_parser = DEFAULT_NODE_PARSER
+    Settings.postprocessors = DEFAULT_POSTPROCESSORS
 
     env["scraper"] = JobScraper(
         output_dpath=config["output_dir"], top_recent=config["top_recent"]
     )
     env["vector_database"] = QdrantTextDatabase(
-        collection_name="jobs_qa",
-        url="http://0.0.0.0:6333",
+        client=DEFAULT_CLIENT_QDRANT,
+        transformations=DEFAULT_TRANSFORMATIONS,
+        collection_name=DEFAULT_COLLECTION_NAME,
         enable_hybrid=False,
     )
     env["vector_store_index"] = env["vector_database"].get_index()
@@ -110,14 +118,12 @@ def startup():
     )
 
     table = None
-    filepath = osp.join(config["output_dir"], config["name"] + ".csv")
+    file_path = osp.join(config["output_dir"], config["name"] + ".csv")
     if config["scrape"]:
         # TODO: pass search query rather than url
-        table, filepath = env["scraper"].scrape(
-            url=config["url"], name=config["name"]
-        )
+        table, file_path = env["scraper"].scrape(url=config["url"], name=config["name"])
 
-    get_qa_engine(filepath=filepath, table=table)
+    get_qa_engine(file_path=file_path, table=table)
 
 
 @asynccontextmanager
@@ -129,19 +135,23 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
-@app.post("/chat", status_code=200)
+@app.post("/agent/chat", status_code=200)
 async def chat(input: TextInput):
     response = env["qa_engine"].query(input.text)
     return response
 
 
-@app.put("/update_llm", status_code=200)
+@app.put("/agent/update_llm", status_code=200)
 async def update_llm(input: TextInput):
-    model = input.text
-    Settings.llm = get_llm(model)
+    Settings.llm = get_llm(input.text)
 
 
-@app.put("/update_table", status_code=200)
+@app.post("/document/get_path", status_code=200)
+async def get_path():
+    return env["file_path"]
+
+
+@app.put("/document/update_table", status_code=200)
 async def update_table(input: TextInput):
-    filepath = input.text
-    get_qa_engine(filepath=filepath)
+    env["file_path"] = input.text
+    get_qa_engine(file_path=env["file_path"])
