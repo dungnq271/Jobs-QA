@@ -18,17 +18,12 @@ def setup_logging(log_dir, config_fpath):
             # modify logging paths based on log_dir
             for __, handler in config["handlers"].items():
                 if "filename" in handler:
-                    handler["filename"] = "/".join(
-                        [log_dir, handler["filename"]]
-                    )
+                    handler["filename"] = "/".join([log_dir, handler["filename"]])
 
         logging.config.dictConfig(config)
     else:
         logging.basicConfig(level=logging.INFO)
-        print(
-            f"Warning: logging configuration file is "
-            f"not found in {log_config}."
-        )
+        print(f"Warning: logging configuration file is " f"not found in {log_config}.")
 
 
 def get_logger(name):
