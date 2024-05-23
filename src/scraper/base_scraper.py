@@ -2,7 +2,6 @@ from abc import ABC, abstractmethod
 
 
 class BaseScraper(ABC):
-
     def __init__(
         self,
         output_dpath: str,
