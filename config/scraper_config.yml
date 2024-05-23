@@ -1,0 +1,6 @@
+url: "https://www.google.com/search?q=ai+engineer+tuy%E1%BB%83n+d%E1%BB%A5ng"
+top_recent: 5
+output_dir: "./result"
+name: "jobs_posted_v1"
+scrape: false
+logger_fpath: "./configs/logger_config.yml"
