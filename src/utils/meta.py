@@ -13,9 +13,7 @@ metadata: dict[str, str | dict[str, Any]] = {
         "Posted": "Number_of_days_posted_ago",
         "Salary": "Pay",
     },
-    "column_map_function": {
-        "Number_of_days_posted_ago": modify_days_to_3digits
-    },
+    "column_map_function": {"Number_of_days_posted_ago": modify_days_to_3digits},
     "column_description": {
         "Logo": {"type": "str", "description": None},
         "Role": {"type": "str", "description": None},
