@@ -143,9 +143,7 @@ class Agent:
                 # system_prompt=system_prompt,
                 callback_manager=callback_manager,
             )
-            self.agent = AgentRunner(
-                agent_worker, callback_manager=callback_manager
-            )
+            self.agent = AgentRunner(agent_worker, callback_manager=callback_manager)
         elif agent_mode == "react-query-understanding":
             callback_manager = llm.callback_manager
             agent_worker = QueryUnderstandingAgentWorker.from_tools(
@@ -154,9 +152,7 @@ class Agent:
                 # system_prompt=system_prompt,
                 callback_manager=callback_manager,
             )
-            self.agent = AgentRunner(
-                agent_worker, callback_manager=callback_manager
-            )
+            self.agent = AgentRunner(agent_worker, callback_manager=callback_manager)
         else:
             raise NotImplementedError
 
@@ -177,9 +173,7 @@ class Agent:
         # )
 
         client = qdrant_client.QdrantClient(location=":memory:")
-        self.vector_store = QdrantVectorStore(
-            client=client, collection_name=table_name
-        )
+        self.vector_store = QdrantVectorStore(client=client, collection_name=table_name)
         self.storage_context = StorageContext.from_defaults(
             vector_store=self.vector_store
         )
@@ -209,9 +203,7 @@ class Agent:
             if suff in [".txt", ".pdf", ".pptx"]:
                 document = SimpleDirectoryReader(
                     input_files=[filepath],
-                    file_extractor={
-                        suff: self.parser for suff in [".pdf", ".pptx"]
-                    },
+                    file_extractor={suff: self.parser for suff in [".pdf", ".pptx"]},
                 ).load_data()
 
             else:
@@ -232,9 +224,7 @@ class Agent:
         if not hasattr(self, "index"):  # khởi tạo index lần đầu
             if rag_mode == "advanced":
                 nodes = node_parser.get_nodes_from_documents(documents)
-                base_nodes, objects = self.node_parser.get_nodes_and_objects(
-                    nodes
-                )
+                base_nodes, objects = self.node_parser.get_nodes_and_objects(nodes)
                 self.index = VectorStoreIndex(
                     nodes=base_nodes + objects,
                     storage_context=self.storage_context,
@@ -248,9 +238,7 @@ class Agent:
         else:
             # nếu có index rồi thì thêm các document vào index
             for doc in documents:
-                self.index.insert(
-                    document=doc, storage_context=self.storage_context
-                )
+                self.index.insert(document=doc, storage_context=self.storage_context)
 
     def _get_meta_table(self, filepath):
         filename = osp.basename(filepath)
@@ -313,9 +301,7 @@ class Agent:
         if not self.should_end:
             clarifying_texts = "\n".join(
                 [
-                    clarifying_template.format(
-                        question=question, answer=answer
-                    )
+                    clarifying_template.format(question=question, answer=answer)
                     for question, answer in self.clarifying_questions
                 ]
             )
@@ -332,10 +318,7 @@ class Agent:
             # mặc định cho ReAct agent chat
             response = self.agent.chat(prompt)
             # kiểm tra lệnh sql agent dùng nếu query bảng
-            if (
-                verbose
-                and "sql_query" in response.sources[0].raw_output.metadata
-            ):
+            if verbose and "sql_query" in response.sources[0].raw_output.metadata:
                 print(response.sources[0].raw_output.metadata["sql_query"])
             response = response.response
             self.should_end = True
