@@ -1,4 +1,4 @@
-from typing import Any, Dict, Union
+from typing import Any
 
 from .func import modify_days_to_3digits
 
@@ -6,14 +6,16 @@ CHUNKING_REGEX = r"([^,.;。？！]+(?:http)*.*)[,.;。？！]?"
 
 
 # File Metadata
-metadata: Dict[str, Union[str, Dict[Any, Any]]] = {
+metadata: dict[str, str | dict[str, Any]] = {
     "table_name": "jobPosted",
-    "file_description": "different jobs information" " at different companies",
+    "file_description": "different jobs information at different companies",
     "renamed_column": {
         "Posted": "Number_of_days_posted_ago",
         "Salary": "Pay",
     },
-    "column_map_function": {"Number_of_days_posted_ago": modify_days_to_3digits},
+    "column_map_function": {
+        "Number_of_days_posted_ago": modify_days_to_3digits
+    },
     "column_description": {
         "Logo": {"type": "str", "description": None},
         "Role": {"type": "str", "description": None},
