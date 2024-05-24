@@ -10,6 +10,9 @@ llama-index-agent-openai-legacy
 llama-index-llms-anthropic
 llama-index-readers-file
 
+dspy-ai
+dspy-ai[qdrant]
+
 selenium
 webdriver_manager
 selectolax
