@@ -1,10 +1,10 @@
+import json
 import os
 import os.path as osp
 from contextlib import asynccontextmanager
-from typing import Any
+from typing import Any, Dict, List
 
 import nest_asyncio
-import pandas as pd
 from dotenv import find_dotenv, load_dotenv
 from fastapi import FastAPI
 from llama_index.core import Settings
@@ -18,23 +18,30 @@ from pydantic import BaseModel
 from qdrant_client import QdrantClient
 from sqlalchemy import create_engine
 
+from src.agent import OpenAIToolAgent
 from src.database import QdrantTextDatabase
-from src.engine import TableEngineFactory, TextLinkToSource
-from src.reader import TableReader
-from src.scraper import JobScraper
-from src.utils import CHUNKING_REGEX, get_config, metadata, setup_logging
-
-# requests.packages.urllib3.util.connection.HAS_IPV6 = False
-
+from src.database.utils import NodeLinkToSource
+from src.engine import TableEngine, TextEngine
+from src.prompt import (
+    DEFAULT_FUNCTION_QUERY_SQL_DESCRIPTION_TMPL,
+    DEFAULT_FUNCTION_QUERY_TEXT_DESCRIPTION_TMPL,
+)
+from src.reader import DocumentReader, TableReader
+from src.tool import ToolControler
+from src.utils import CHUNKING_REGEX, calculate_time, files_metadata
 
 nest_asyncio.apply()
 
 
-env: dict[str, Any] = {}
+env: Dict[str, Any] = {}
 
 
 class TextInput(BaseModel):
     text: str
+
+
+class TextListInput(BaseModel):
+    text_list: List[str]
 
 
 def get_llm(model):
@@ -47,26 +54,11 @@ def get_llm(model):
     return llm
 
 
-def get_qa_engine(
-    file_path: str = "./documents/posted_jobs.csv",
-    table: pd.DataFrame | None = None,
-):
-    documents = env["reader"].load_data(
-        file_path=file_path, metadata=metadata, table=table
-    )
-    id_node_mapping = env["vector_database"].preprocess(documents)
-    env["qa_engine"] = env["factory"].get_qa_engine(
-        metadata, id_node_mapping=id_node_mapping
-    )
-
-
+@calculate_time(name="Startup")
 def startup():
     _ = load_dotenv(find_dotenv())  # read local .env file
-    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")  # type: ignore
-    os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")  # type: ignore
-
-    config = get_config("./config/scraper_config.yml")
-    setup_logging(log_dir=config["output_dir"], config_fpath=config["logger_fpath"])
+    os.environ["OPENAI_API_KEY"] = os.getenv("OPENAI_API_KEY")
+    os.environ["ANTHROPIC_API_KEY"] = os.getenv("ANTHROPIC_API_KEY")
 
     DEFAULT_COLLECTION_NAME = "agent_demo"
     DEFAULT_EMBED_MODEL = OpenAIEmbedding(
@@ -90,7 +82,7 @@ def startup():
     DEFAULT_TRANSFORMATIONS = [
         DEFAULT_NODE_PARSER,
         DEFAULT_EMBED_MODEL,
-        TextLinkToSource(),
+        NodeLinkToSource(),
     ]
     DEFAULT_CLIENT_QDRANT = QdrantClient(url=os.getenv("QDRANT_URL"))
 
@@ -99,31 +91,62 @@ def startup():
     Settings.node_parser = DEFAULT_NODE_PARSER
     Settings.postprocessors = DEFAULT_POSTPROCESSORS
 
-    env["scraper"] = JobScraper(
-        output_dpath=config["output_dir"], top_recent=config["top_recent"]
-    )
+    env["tool"] = ToolControler()
+    env["tools_use"] = env["tool"].get_tools_use()
+
     env["vector_database"] = QdrantTextDatabase(
         client=DEFAULT_CLIENT_QDRANT,
         transformations=DEFAULT_TRANSFORMATIONS,
         collection_name=DEFAULT_COLLECTION_NAME,
+        store_nodes_override=True,
         enable_hybrid=False,
     )
-    env["vector_store_index"] = env["vector_database"].get_index()
+    env["vector_store_index"] = env["vector_database"].index
+
     env["db_engine"] = create_engine("sqlite:///:memory:", future=True)
-    env["reader"] = TableReader(db_engine=env["db_engine"])
-    env["factory"] = TableEngineFactory(
-        db_engine=env["db_engine"],
-        vector_store_index=env["vector_store_index"],
-        # node_postprocessors=Settings.postprocessors,
+    env["reader"] = {
+        "table": TableReader(db_engine=env["db_engine"]),
+        "text": DocumentReader(),
+        "image": None,
+    }
+    env["engine"] = {
+        "table": TableEngine(
+            db_engine=env["db_engine"],
+            vector_store_index=env["vector_store_index"],
+            # node_postprocessors=Settings.postprocessors,
+            similarity_top_k=3,
+        ),
+        "text": TextEngine(vector_store_index=env["vector_store_index"]),
+        "image": None,
+    }
+    env["get_engine_functions"] = {
+        "table": [
+            {
+                "function": env["engine"]["table"].get_sql_retriever,
+                "name": "sql_retriever",
+                "desciption_template": DEFAULT_FUNCTION_QUERY_SQL_DESCRIPTION_TMPL,
+                "type": "sql",
+            },
+            {
+                "function": env["engine"]["table"].get_vector_retriever,
+                "name": "vector_retriever",
+                "desciption_template": DEFAULT_FUNCTION_QUERY_TEXT_DESCRIPTION_TMPL,
+                "type": "recursive",
+            },
+        ],
+        "text": [
+            {
+                "function": env["engine"]["table"].get_vector_retriever,
+                "name": "vector_retriever",
+                "desciption_template": DEFAULT_FUNCTION_QUERY_TEXT_DESCRIPTION_TMPL,
+                "type": "normal",
+            },
+        ],
+        "image": None,
+    }
+    env["agent"] = OpenAIToolAgent(
+        tools=env["tools_use"], vector_index=env["vector_store_index"]
     )
-
-    table = None
-    file_path = osp.join(config["output_dir"], config["name"] + ".csv")
-    if config["scrape"]:
-        # TODO: pass search query rather than url
-        table, file_path = env["scraper"].scrape(url=config["url"], name=config["name"])
-
-    get_qa_engine(file_path=file_path, table=table)
 
 
 @asynccontextmanager
@@ -135,23 +158,89 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 
 
+def update_agent_tools():
+    env["tools_use"] = env["tool"].get_tools_use()
+    env["agent"].get_agent(env["tools_use"], verbose=True)
+
+
 @app.post("/agent/chat", status_code=200)
 async def chat(input: TextInput):
-    response = env["qa_engine"].query(input.text)
-    return response
+    return env["agent"].chat(query=input.text, db_engine=env["db_engine"])
 
 
 @app.put("/agent/update_llm", status_code=200)
 async def update_llm(input: TextInput):
-    Settings.llm = get_llm(input.text)
+    model = input.text
+    Settings.llm = get_llm(model)
 
 
-@app.post("/document/get_path", status_code=200)
-async def get_path():
-    return env["file_path"]
+@app.put("/document/add_document", status_code=200)
+async def add_document(input: TextInput):
+    file_path = input.text
+
+    suff = osp.splitext(file_path)[-1]
+    metadata = files_metadata.get(file_path, None)
+
+    if suff in [".csv", ".xlxs"]:
+        mode = "table"
+    elif suff in [".pdf", ".pptx", ".txt"]:
+        mode = "text"
+    elif suff in [".jpg", ".png"]:
+        mode = "image"
+
+    env["tool"].add_tools_use(
+        file_path=file_path,
+        metadata=metadata,
+        reader=env["reader"][mode],
+        vector_db=env["vector_database"],
+        get_engine_functions=env["get_engine_functions"][mode],
+    )
+    update_agent_tools()
 
 
-@app.put("/document/update_table", status_code=200)
-async def update_table(input: TextInput):
-    env["file_path"] = input.text
-    get_qa_engine(file_path=env["file_path"])
+@app.post("/tool/get_api_tools_name", status_code=200)
+async def get_api_tools_name():
+    return env["tool"].get_api_tools_name()
+
+
+@app.put("/tool/add_api_tools_use", status_code=200)
+async def add_api_tools_use(input: TextListInput):
+    tools_name = input.text_list
+    env["tool"].add_tools_use(tools_name=tools_name)
+    update_agent_tools()
+
+
+@app.put("/tool/remove_tools_use", status_code=200)
+async def remove_tools_use(input: TextListInput):
+    tool_names = input.text_list
+    env["tool"].remove_tools_use(tool_names)
+    update_agent_tools()
+
+
+@app.post("/tool/get_latest_tool_call", status_code=200)
+async def get_latest_tool_call():
+    display_results_str = ""
+    last_task_id = None
+
+    agent = env["agent"].agent
+
+    if env["agent"].agent.get_completed_tasks():
+        last_task_id = agent.get_completed_tasks()[-1].task_id
+
+    if last_task_id:
+        steps = agent.get_completed_steps(last_task_id)
+        for output in steps[-1].output.sources:
+            display_results_str = (
+                f"**Use:** {output.tool_name}"
+                f"  \n**with args:** {output.raw_input['kwargs']}"
+                f"  \n**Got output:** {output.raw_output}"
+            )
+
+    if "google_search" in display_results_str:
+        display_results_str += "  \n**Reference:**  \n"
+        with open("tool_results/google_search_result.json", "r") as f:
+            tool_results = json.load(f)
+        display_results = [item["link"] for item in tool_results["items"]]
+        display_results_str += "  \n".join(display_results)
+
+    return display_results_str
