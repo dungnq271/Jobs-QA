@@ -1,4 +1,5 @@
 # RAG for multiple documents
+This project was initially developed to address questions related to AI Engineer job postings available through the [Google Jobs API](https://www.google.com/search?channel=fs&client=ubuntu-sn&q=ai+engineer+tuy%E1%BB%83n+d%E1%BB%A5ng&ibp=htl;jobs&sa=X&ved=2ahUKEwjP0KC27L6GAxVRk68BHfeDDIQQudcGKAF6BAgcECw&sxsrf=ADLYWIJqbRuHJU0MULmNk3Q3T-YSAX5v4A:1717397547924). It has since been expanded to support question-answering (QA) functionalities across multiple document formats, including PDF and PPTX files. Additionally, it now features a Google Search tool for enhanced information retrieval.
 
 ## Demo
 ![](./annotations/output_v2.gif)
