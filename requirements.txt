@@ -1,26 +1,26 @@
 openai
 streamlit
 
-qdrant_client
-
 llama-index
 llama-parse
+qdrant_client
 llama-index-vector-stores-qdrant
 llama-index-agent-openai-legacy
 llama-index-llms-anthropic
 llama-index-readers-file
-
-selenium
-webdriver_manager
-selectolax
-beautifulsoup4
-lxml
+llama-index-packs-query-understanding-agent
+llama-index-llms-langchain
+llama-index-tools-google
 
 fastapi
 uvicorn
 python-dotenv
 ipykernel
 icecream
+
+# paddlepaddle
+# paddleocr
+# unstructured[image,pdf,docx,pptx]
 
 pre-commit
 black
