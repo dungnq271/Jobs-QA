@@ -1,5 +1,5 @@
-from .base_factory import BaseFactory
-from .table_factory import TableEngineFactory
-from .utils import TextLinkToSource
+from .base_engine import BaseEngine
+from .table_engine import TableEngine
+from .text_engine import TextEngine
 
-__all__ = ["BaseFactory", "TableEngineFactory", "TextLinkToSource"]
+__all__ = ["BaseEngine", "TableEngine", "TextEngine"]

@@ -4,8 +4,8 @@ from llama_index.core import VectorStoreIndex
 from llama_index.core.retrievers import BaseRetriever
 
 
-class BaseFactory(ABC):
-    """Base database builder."""
+class BaseEngine(ABC):
+    """Base engine builder."""
 
     def __init__(self, vector_store_index: VectorStoreIndex):
         """Initial database."""
