@@ -23,7 +23,7 @@ def setup_logging(log_dir, config_fpath):
         logging.config.dictConfig(config)
     else:
         logging.basicConfig(level=logging.INFO)
-        print(f"Warning: logging configuration file is " f"not found in {log_config}.")
+        print(f"Warning: logging configuration file is not found in {log_config}.")
 
 
 def get_logger(name):
