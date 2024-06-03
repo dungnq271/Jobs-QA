@@ -10,9 +10,6 @@ from qdrant_client import QdrantClient
 
 from src.database.base_database import BaseDatabase
 from src.utils import calculate_time
-from src.utils.extension_class.extension_multimodal_vector_store_index import (
-    MultiModalVectorStoreIndexExtension,
-)
 from src.utils.extension_class.extension_qdrant_vector_store_index import (
     QdrantVectorStoreExtension,
 )
@@ -118,73 +115,5 @@ class QdrantTextDatabase(BaseDatabase):
 
     def delete_documents(self, file_paths):
         """Delete documents"""
-        for file_path in file_paths:
-            self.processor.delete_extension(value=file_path)
-
-
-class QdrantImageDatabase(BaseDatabase):
-    def __init__(self, client, collection_name, service_context, enable_hybrid=False):
-        self.client = client
-        self.collection_name = collection_name
-        self.service_context = service_context
-
-        self.text_store = QdrantVectorStoreExtension(
-            client=self.client,
-            collection_name=f"{collection_name}_text",
-            enable_hybrid=enable_hybrid,
-        )
-
-        self.image_store = QdrantVectorStoreExtension(
-            client=self.client,
-            collection_name=f"{collection_name}_image",
-            enable_hybrid=enable_hybrid,
-        )
-
-        self.storage_context = StorageContext.from_defaults(
-            vector_store=self.text_store, image_store=self.image_store
-        )
-        self.processor = MultiModalVectorStoreIndexExtension.from_storage_context(
-            storage_context=self.storage_context, service_context=self.service_context
-        )
-
-        all_collections = self.client.get_collections()
-        all_name_collections = [
-            collection.name for collection in all_collections.collections
-        ]
-
-        self.exist_collection = (
-            f"{self.collection_name}_text" in all_name_collections
-            and f"{self.collection_name}_image" in all_name_collections
-        )
-
-    def get_index(self):
-        """Get index of database"""
-        return self.processor
-
-    def insert_documents(self, documents):
-        """Insert documents"""
-        for document in documents:
-            if "file_path" not in document.metadata:
-                raise Exception("Document doesn't include file_path in metadata !")
-            if not self.exist_collection:
-                self.processor.insert(document)
-                return
-            # Check document exist in the database
-            check_exist = self.processor.filter_extension(
-                document.metadata["file_path"]
-            )
-            if len(check_exist[0][0]) == 0 and len(check_exist[1][0]) == 0:
-                self.processor.insert(document)
-            else:
-                # TODO: Need checkbox to ask customer
-                warnings.warn(
-                    "Document is existed in the database. "
-                    "We will overwrite the document!"
-                )
-                self.delete_documents(document.metadata["file_path"])
-                self.processor.insert(document)
-
-    def delete_documents(self, file_paths):
-        """Delete document"""
         for file_path in file_paths:
             self.processor.delete_extension(value=file_path)
