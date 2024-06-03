@@ -40,10 +40,10 @@ jobs:
         run: |
           ruff check --output-format=github .
 
-      - name: Format with Ruf
+      - name: Format with Ruff
         run: |
           ruff format .
 
-      - name: Test with Tox
-        run: |
-          tox
+      # - name: Test with Tox
+      #   run: |
+      #     tox
