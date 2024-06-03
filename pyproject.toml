@@ -3,10 +3,10 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "alphii-agent"
+name = "document-agent"
 requires-python = ">=3.10"
 authors = [
-    {name="Leonard Nguyen", email="dunnguyen2712002@gmail.com"}
+    {name="Leonard Nguyen", email="dunnguyen2712002@gmail.com"},
 ]
 readme = "README.md"
 version = "0.2.0"
