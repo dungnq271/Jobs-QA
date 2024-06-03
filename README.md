@@ -1,15 +1,20 @@
 # RAG for multiple documents
 
+## Demo
+![](./annotations/output_v2.gif)
+
 ## Supported Documents
-- [x] .csv
-- [ ] .pdf, .pptx
-- [ ] .jpg, .png
-  - [ ] ocr
-  - [ ] description
+- [x] .csv (currenly supported tables in [jobs_posted_v1.csv](./documents/jobs_posted_v1.csv) format only)
+- [x] .pdf, .pptx
 
 ## Setup
 ```
 pip install -r requirements.txt
+```
+
+## Run docker client
+```
+./scripts/qdrant.sh
 ```
 
 ## Run
@@ -21,5 +26,5 @@ pip install -r requirements.txt
 
 **Wait for api startup complete and run in another tab**:
 ```
-./scripts/app.sh
+./scripts/app.sh {PORT_NUMBER}
 ```
