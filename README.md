@@ -1,4 +1,11 @@
-# QA with Google Jobs
+# RAG for multiple documents
+
+## Supported Documents
+- [x] .csv
+- [ ] .pdf, .pptx
+- [ ] .jpg, .png
+  - [ ] ocr
+  - [ ] description
 
 ## Setup
 ```
