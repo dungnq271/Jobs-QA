@@ -1,9 +1,14 @@
+import os
 from typing import Dict, List
 
+from dotenv import find_dotenv, load_dotenv
 from llama_index.core import SimpleDirectoryReader
 from llama_parse import LlamaParse
 
 from .base_reader import BaseReader
+
+_ = load_dotenv(find_dotenv())  # read local .env file
+
 
 # Currently, Llamaparser only the following file types are supported:
 all_supported_formats = [
@@ -65,7 +70,7 @@ supported_formats = [
 
 parser = LlamaParse(
     # can also be set in your env as LLAMA_CLOUD_API_KEY
-    api_key="llx-BURYg70IGnuz1GD1wOCBVYt64rS3f5bASLKKxbkywVX92KRG",
+    api_key=os.getenv("LLAMA_CLOUD_API_KEY"),
     result_type="text",  # "markdown" and "text" are available,
     num_workers=8,
     max_timeout=600,
